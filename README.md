@@ -47,6 +47,10 @@ The robot has been designed entirely in Solidworks.
 
 <img src="docs/AMR_ShoppingCart.png" width="350" height="300">
 
+It consists of 2 main parts:
+* Robot Base -> Main body part, holds the robot panel, the motors, the lidars and the basket.
+* Robot Panel -> Designed to fit all electrical components inside 
+
 ## Simulation
 
 The robot was initially built inside a simulation. 
