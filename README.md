@@ -41,6 +41,12 @@ The project makes use of both custom packages and community-based packages.
 
 [*Other packages are still in development*]
 
+## Robot 3D Modelling
+
+The robot has been designed entirely in Solidworks.
+
+<img src="docs/AMR_ShoppingCart.png" width="350" height="300">
+
 ## Simulation
 
 The robot was initially built inside a simulation. 
