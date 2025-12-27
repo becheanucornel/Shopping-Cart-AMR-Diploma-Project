@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Robot Control</title>
+<script src="roslib.min.js"></script>
+<style>
+body {
+  margin: 0;
+  padding: 20px;
+  font-family: Arial, sans-serif;
+  background: #2e2e32;
+  background: radial-gradient(circle at top left, #3a3a3f, #232324 70%);
+  color: #e5e9e5;
+}
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+/* Title removed per request */
+.status {
+  text-align: center;
+  margin: 20px 0;
+  padding: 10px;
+  background: #2a2a2a;
+  border-radius: 5px;
+}
+.status span {
+  margin: 0 15px;
+}
+.connected { color: #4CAF50; }
+.disconnected { color: #f44336; }
+
+.main-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin: 20px 0;
+}
+
+.panel {
+  background: #2a2a2a;
+  border-radius: 8px;
+  padding: 20px;
+}
+.panel h2 {
+  margin: 0 0 15px 0;
+  color: #4CAF50;
+  font-size: 1.2em;
+}
+
+.mode-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.mode-btn {
+  padding: 12px;
+  border: 2px solid #444;
+  background: #333;
+  color: #fff;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 1em;
+  transition: all 0.2s;
+}
+.mode-btn:hover {
+  background: #444;
+  border-color: #666;
+}
+.mode-btn.active {
+  background: #4CAF50;
+  border-color: #4CAF50;
+   background: rgba(0, 255, 136, 0.2);
+   border: 2px solid #00ff88;
+   color: #00ff88;
+   animation: pulse-green 2s infinite;
+ }
+ 
+ .connection-indicator.disconnected {
+   background: rgba(255, 68, 68, 0.2);
+   border: 2px solid #ff4444;
+   color: #ff4444;
+   animation: pulse-red 2s infinite;
+ }
+ 
+ @keyframes pulse-green {
+   0%, 100% { box-shadow: 0 0 5px rgba(0, 255, 136, 0.5); }
+   50% { box-shadow: 0 0 20px rgba(0, 255, 136, 0.8); }
+ }
+ 
+ @keyframes pulse-red {
+   0%, 100% { box-shadow: 0 0 5px rgba(255, 68, 68, 0.5); }
+   50% { box-shadow: 0 0 20px rgba(255, 68, 68, 0.8); }
+ }
+ 
+ .grid {
+   display: grid;
+   grid-template-columns: 450px 1fr;
+   gap: 20px;
+   margin-bottom: 20px;
+ }
+ 
+ @media (max-width: 1200px) {
+   .grid { grid-template-columns: 1fr; }
+ }
+ 
+.section {
+  background: rgba(50, 52, 50, 0.75);
+  padding: 25px;
+  border-radius: 15px;
+  border: 1px solid rgba(20, 156, 76, 0.25);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(8px);
+}
+ 
+h2 {
+  color: #149c4c;
+  margin-bottom: 20px;
+  font-size: 1.5em;
+  border-bottom: 2px solid rgba(20, 156, 76, 0.35);
+  padding-bottom: 10px;
+}
+ 
+ .mode-buttons {
+   display: grid;
+   grid-template-columns: repeat(4, 1fr);
+   gap: 10px;
+   margin-bottom: 20px;
+ }
+ 
+button {
+  background: linear-gradient(145deg, #414741, #2e332e);
+  color: #e0e0e0;
+  border: 2px solid rgba(20, 156, 76, 0.35);
+   padding: 12px 20px;
+   border-radius: 8px;
+   cursor: pointer;
+   font-size: 1em;
+   font-weight: 600;
+   transition: all 0.3s ease;
+   text-transform: uppercase;
+   letter-spacing: 1px;
+ }
+ 
+button:hover {
+  background: linear-gradient(145deg, #4d554d, #383e38);
+  border-color: #149c4c;
+  box-shadow: 0 0 15px rgba(20, 156, 76, 0.4);
+   transform: translateY(-2px);
+ }
+ 
+ button:active {
+   transform: translateY(0);
+ }
+ 
+button.active {
+  background: linear-gradient(145deg, #149c4c, #0d6f35);
+  color: #000;
+  border-color: #21d368;
+  box-shadow: 0 0 25px rgba(20, 156, 76, 0.55);
+ }
+ 
+ .drive-controls {
+   display: grid;
+   grid-template-columns: repeat(3, 1fr);
+   gap: 10px;
+   max-width: 300px;
+   margin: 20px auto;
+ }
+ 
+ .drive-controls button {
+   padding: 20px;
+   font-size: 1.2em;
+   aspect-ratio: 1;
+ }
+ 
+ .drive-controls button:nth-child(1) { grid-column: 2; }
+ .drive-controls button:nth-child(2) { grid-column: 1; grid-row: 2; }
+ .drive-controls button:nth-child(3) { grid-column: 2; grid-row: 2; background: linear-gradient(145deg, #ff4444, #cc0000); border-color: #ff6666; }
+ .drive-controls button:nth-child(4) { grid-column: 3; grid-row: 2; }
+ .drive-controls button:nth-child(5) { grid-column: 2; grid-row: 3; }
+ 
+ .drive-controls button:nth-child(3):hover {
+   background: linear-gradient(145deg, #ff6666, #dd2222);
+   box-shadow: 0 0 15px rgba(255, 68, 68, 0.6);
+ }
+ 
+ .nav-inputs {
+   display: grid;
+   grid-template-columns: repeat(3, 1fr);
+   gap: 15px;
+   margin-bottom: 20px;
+ }
+ 
+ .input-group {
+   display: flex;
+   flex-direction: column;
+ }
+ 
+.input-group label {
+  color: #149c4c;
+   font-weight: 600;
+   margin-bottom: 8px;
+   font-size: 0.9em;
+   text-transform: uppercase;
+ }
+ 
+input[type=number] {
+  background: rgba(40, 42, 40, 0.85);
+  color: #149c4c;
+  border: 2px solid rgba(20, 156, 76, 0.35);
+   padding: 10px;
+   border-radius: 8px;
+   font-size: 1.1em;
+   font-weight: bold;
+   transition: all 0.3s ease;
+ }
+ 
+input[type=number]:focus {
+  outline: none;
+  border-color: #149c4c;
+  box-shadow: 0 0 15px rgba(20, 156, 76, 0.35);
+ }
+ 
+ .nav-buttons {
+   display: grid;
+   grid-template-columns: 1fr 1fr;
+   gap: 10px;
+ }
+ 
+ .nav-buttons button {
+   padding: 15px;
+ }
+ 
+ .nav-buttons button:first-child {
+   background: linear-gradient(145deg, #00cc44, #009933);
+   border-color: #00ff66;
+ }
+ 
+ .nav-buttons button:first-child:hover {
+   background: linear-gradient(145deg, #00ff66, #00dd44);
+   box-shadow: 0 0 20px rgba(0, 255, 102, 0.6);
+ }
+ 
+ .nav-buttons button:last-child {
+   background: linear-gradient(145deg, #ff8800, #cc6600);
+   border-color: #ffaa00;
+ }
+ 
+ .nav-buttons button:last-child:hover {
+   background: linear-gradient(145deg, #ffaa00, #dd7700);
+   box-shadow: 0 0 20px rgba(255, 136, 0, 0.6);
+ }
+ 
+#robotCanvas {
+  width: 100%;
+  height: 400px;
+  background: #000;
+  border: 2px solid rgba(20, 156, 76, 0.35);
+  border-radius: 10px;
+  box-shadow: inset 0 0 20px rgba(20, 156, 76, 0.15);
+}
+ 
+ .status-grid {
+   display: grid;
+   grid-template-columns: repeat(2, 1fr);
+   gap: 15px;
+   margin-top: 20px;
+ }
+ 
+.status-item {
+  background: rgba(0, 0, 0, 0.35);
+  padding: 12px;
+  border-radius: 8px;
+  border-left: 4px solid #149c4c;
+}
+ 
+ .status-label {
+   color: #888;
+   font-size: 0.8em;
+   text-transform: uppercase;
+   margin-bottom: 5px;
+ }
+ 
+.status-value {
+  color: #149c4c;
+   font-size: 1.2em;
+   font-weight: bold;
+   font-family: 'Courier New', monospace;
+ }
+ 
+ .full-width {
+   grid-column: 1 / -1;
+ }
+ 
+.info-banner {
+  background: rgba(20, 156, 76, 0.12);
+  border: 1px solid rgba(20, 156, 76, 0.35);
+   border-radius: 10px;
+   padding: 15px;
+   margin-top: 10px;
+   text-align: center;
+   font-size: 0.9em;
+   color: #aaa;
+ }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Title removed -->
+  
+  <div class="header-status">
+    <span class="connection-indicator disconnected" id="connIndicator">● DISCONNECTED</span>
+    <span style="color: #666; margin: 0 20px;">|</span>
+    <span style="color: #888;">Current Mode:</span>
+    <span style="color: #149c4c; font-weight: bold; margin-left: 10px;" id="currentMode">UNKNOWN</span>
+  </div>
+
+  <div class="grid">
+    <!-- Left Column: Visualization -->
+    <div class="section" id="vizSection">
+      <h2>📊 Visualization</h2>
+      <canvas id="robotCanvas" width="600" height="600"></canvas>
+      
+      <div class="status-grid">
+        <div class="status-item">
+          <div class="status-label">Position X</div>
+          <div class="status-value" id="posX">0.00</div>
+        </div>
+        <div class="status-item">
+          <div class="status-label">Position Y</div>
+          <div class="status-value" id="posY">0.00</div>
+        </div>
+        <div class="status-item">
+          <div class="status-label">Orientation</div>
+          <div class="status-value" id="posYaw">0.00°</div>
+        </div>
+        <div class="status-item">
+          <div class="status-label">Goal Status</div>
+          <div class="status-value" id="goalStatus">IDLE</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: Controls -->
+    <div class="section" id="controlSection">
+      <h2>🎮 Mode Selection</h2>
+      <div class="mode-buttons">
+        <button onclick="setMode('IDLE')">Idle</button>
+        <button onclick="setMode('MANUAL')">Manual</button>
+        <button onclick="setMode('FOLLOWING')">Follow</button>
+        <button onclick="setMode('NAVIGATION')">Navigate</button>
+      </div>
+      <div id="manualSection">
+        <h2>🕹️ Manual Drive</h2>
+        <div class="info-banner" style="margin-bottom: 15px;">
+          Switch to MANUAL mode to enable drive controls
+        </div>
+        <div class="drive-controls">
+          <button onclick="drive(1.5,0)" title="Forward">▲</button>
+          <button onclick="drive(0,1.0)" title="Rotate Left">⟲</button>
+          <button onclick="drive(0,0)" title="Stop">■</button>
+          <button onclick="drive(0,-1.0)" title="Rotate Right">⟳</button>
+          <button onclick="drive(-1.5,0)" title="Backward">▼</button>
+        </div>
+      </div>
+      <div id="navSection">
+        <h2>🎯 Navigation Goal</h2>
+        <div class="info-banner" style="margin-bottom: 15px;">
+          Switch to NAVIGATION mode before sending goals
+        </div>
+        <div class="nav-inputs">
+          <div class="input-group">
+            <label for="goalX">X Position</label>
+            <input type="number" id="goalX" value="2.0" step="0.1">
+          </div>
+          <div class="input-group">
+            <label for="goalY">Y Position</label>
+            <input type="number" id="goalY" value="0.0" step="0.1">
+          </div>
+            <div class="input-group">
+            <label for="goalYaw">Yaw (deg)</label>
+            <input type="number" id="goalYaw" value="0" step="5">
+          </div>
+        </div>
+        <div class="nav-buttons">
+          <button onclick="sendGoal()">🚀 Send Goal</button>
+          <button onclick="cancelGoal()">⛔ Cancel Goal</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  if (typeof ROSLIB === 'undefined') {
+    document.getElementById('connIndicator').textContent = '● ERROR: ROSLIB NOT LOADED';
+    console.error('ROSLIB library failed to load');
+    return;
+  }
+
+  var ros = new ROSLIB.Ros({ url: 'ws://localhost:9090' });
+
+  ros.on('connection', function() {
+    document.getElementById('connIndicator').textContent = '● CONNECTED';
+    document.getElementById('connIndicator').className = 'connection-indicator connected';
+  });
+
+  ros.on('error', function(err) {
+    document.getElementById('connIndicator').textContent = '● ERROR';
+    document.getElementById('connIndicator').className = 'connection-indicator disconnected';
+  });
+
+  ros.on('close', function() {
+    document.getElementById('connIndicator').textContent = '● DISCONNECTED';
+    document.getElementById('connIndicator').className = 'connection-indicator disconnected';
+  });
+
+  var robotModeTopic = new ROSLIB.Topic({
+    ros: ros,
+    name: '/robot_mode',
+    messageType: 'std_msgs/String'
+  });
+
+  var currentActiveMode = '';
+  
+  // Subscribe to mode changes
+  robotModeTopic.subscribe(function(msg) {
+    var mode = msg.data.trim().toUpperCase();
+    
+    if (mode !== currentActiveMode) {
+      currentActiveMode = mode;
+      document.getElementById('currentMode').textContent = mode;
+      
+      // Update button highlights
+      var buttons = document.querySelectorAll('.mode-buttons button');
+      buttons.forEach(function(btn) { btn.classList.remove('active'); });
+      buttons.forEach(function(btn){
+        var label = btn.textContent.trim().toUpperCase();
+        // Map shorthand labels to full mode names
+        if (label === 'NAVIGATE') label = 'NAVIGATION';
+        if (label === 'FOLLOW') label = 'FOLLOWING';
+        if (label === mode) {
+          btn.classList.add('active');
+        }
+      });
+
+      // Visibility control without affecting function hooks
+      var manualEl = document.getElementById('manualSection');
+      var navEl = document.getElementById('navSection');
+      if (mode === 'MANUAL') {
+        manualEl.style.display = '';
+        navEl.style.display = 'none';
+      } else if (mode === 'NAVIGATION') {
+        manualEl.style.display = 'none';
+        navEl.style.display = '';
+      } else {
+        manualEl.style.display = 'none';
+        navEl.style.display = 'none';
+      }
+    }
+  });
+
+  // If we don't receive a mode within 1s (late subscription), assume IDLE and update locally
+  setTimeout(function(){
+    if (currentActiveMode === '' || document.getElementById('currentMode').textContent.trim().toUpperCase() === 'UNKNOWN') {
+      window.setMode('IDLE'); // this will update UI and attempt publish
+      console.log('Auto-initialized mode to IDLE');
+    }
+  }, 1000);
+
+  var uiModeCmd = new ROSLIB.Topic({
+    ros: ros,
+    name: '/ui_mode_command',
+    messageType: 'std_msgs/String'
+  });
+
+  var teleopCmd = new ROSLIB.Topic({
+    ros: ros,
+    name: '/teleop/cmd_vel',
+    messageType: 'geometry_msgs/Twist'
+  });
+
+  var navGoal = new ROSLIB.Topic({
+    ros: ros,
+    name: '/web_nav_goal',
+    messageType: 'geometry_msgs/PoseStamped'
+  });
+
+  var odomTopic = new ROSLIB.Topic({
+    ros: ros,
+    name: '/odom',
+    messageType: 'nav_msgs/Odometry'
+  });
+
+  // --- LiDAR Scan Visualization ---
+  var scanTopic = new ROSLIB.Topic({
+    ros: ros,
+    name: '/scan',
+    messageType: 'sensor_msgs/LaserScan'
+  });
+
+  var latestScan = null;
+  scanTopic.subscribe(function(msg) {
+    latestScan = msg;
+  });
+
+  // Store latest robot pose for rendering
+  var robotPose = { x: 0, y: 0, yaw: 0 };
+  var lastRenderTime = 0;
+  var RENDER_INTERVAL = 33; // ~30fps max (1000ms/30fps = 33ms)
+  var lastDomUpdate = 0;
+  var DOM_UPDATE_INTERVAL = 200; // Update DOM every 200ms
+  var hasValidPose = false;
+  
+  // Cache goal marker position to prevent recalculating on every frame
+  var cachedGoalX = 2.0;
+  var cachedGoalY = 0.0;
+
+  odomTopic.subscribe(function(msg) {
+    var x = msg.pose.pose.position.x;
+    var y = msg.pose.pose.position.y;
+    var qz = msg.pose.pose.orientation.z;
+    var qw = msg.pose.pose.orientation.w;
+    var yaw = Math.atan2(2.0 * (qw * qz), 1.0 - 2.0 * (qz * qz));
+
+    // Update robot pose data only
+    robotPose.x = x;
+    robotPose.y = y;
+    robotPose.yaw = yaw;
+    hasValidPose = true;
+
+    // Throttle DOM updates heavily to prevent reflows
+    var now = Date.now();
+    if (now - lastDomUpdate > DOM_UPDATE_INTERVAL) {
+      lastDomUpdate = now;
+      var yawDeg = (yaw * 180 / Math.PI).toFixed(1);
+      document.getElementById('posX').textContent = x.toFixed(2) + ' m';
+      document.getElementById('posY').textContent = y.toFixed(2) + ' m';
+      document.getElementById('posYaw').textContent = yawDeg + '°';
+    }
+  });
+
+  var canvas = document.getElementById('robotCanvas');
+  var ctx = canvas.getContext('2d');
+  var scale = 100;  // pixels per meter - increased for better visibility
+  var offsetX = canvas.width / 2;
+  var offsetY = canvas.height / 2;
+
+  // Pre-render the static background (grid + axes) to an off-screen canvas
+  var bgCanvas = document.createElement('canvas');
+  bgCanvas.width = canvas.width;
+  bgCanvas.height = canvas.height;
+  var bgCtx = bgCanvas.getContext('2d');
+  
+  // Draw static background once (white)
+  bgCtx.fillStyle = '#ffffff';
+  bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
+  
+  // Draw grid (light gray) - extended range
+  bgCtx.strokeStyle = '#e0e0e0';
+  bgCtx.lineWidth = 1;
+  for (var i = -15; i <= 15; i++) {
+    bgCtx.beginPath();
+    bgCtx.moveTo(offsetX + i * scale, 0);
+    bgCtx.lineTo(offsetX + i * scale, bgCanvas.height);
+    bgCtx.stroke();
+    bgCtx.beginPath();
+    bgCtx.moveTo(0, offsetY + i * scale);
+    bgCtx.lineTo(bgCanvas.width, offsetY + i * scale);
+    bgCtx.stroke();
+  }
+  
+  // Draw axes (black crosshair)
+  bgCtx.strokeStyle = '#000000';
+  bgCtx.lineWidth = 2;
+  bgCtx.beginPath();
+  bgCtx.moveTo(offsetX, 0);
+  bgCtx.lineTo(offsetX, bgCanvas.height);
+  bgCtx.stroke();
+  bgCtx.beginPath();
+  bgCtx.moveTo(0, offsetY);
+  bgCtx.lineTo(bgCanvas.width, offsetY);
+  bgCtx.stroke();
+
+
+  function drawRobot(x, y, yaw) {
+    // Always draw background first
+    ctx.drawImage(bgCanvas, 0, 0);
+
+    // Draw goal marker only in NAVIGATION mode (purple circle)
+    if (currentActiveMode === 'NAVIGATION') {
+      var gx = offsetX + cachedGoalX * scale;
+      var gy = offsetY - cachedGoalY * scale;
+      ctx.beginPath();
+      ctx.arc(gx, gy, 10, 0, 2 * Math.PI);
+      ctx.fillStyle = '#8000ff';
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#5000a8';
+      ctx.stroke();
+    }
+
+    // Only draw robot if we have valid pose data
+    if (!hasValidPose) return;
+
+    // --- Draw LiDAR scan as black lines ---
+    if (latestScan && latestScan.ranges && latestScan.ranges.length > 0) {
+      ctx.save();
+      ctx.translate(offsetX + x * scale, offsetY - y * scale);
+      ctx.rotate(-yaw);
+      ctx.globalAlpha = 0.9;
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 1.5;
+      var angle = latestScan.angle_min;
+      var prev = null;
+      for (var i = 0; i < latestScan.ranges.length; i++) {
+        var r = latestScan.ranges[i];
+        if (r >= latestScan.range_min && r <= latestScan.range_max) {
+          var px = r * Math.cos(angle) * scale;
+          var py = -r * Math.sin(angle) * scale;
+          if (prev) {
+            ctx.beginPath();
+            ctx.moveTo(prev[0], prev[1]);
+            ctx.lineTo(px, py);
+            ctx.stroke();
+          }
+          prev = [px, py];
+        } else {
+          prev = null;
+        }
+        angle += latestScan.angle_increment;
+      }
+      ctx.globalAlpha = 1.0;
+      ctx.restore();
+    }
+
+    // Draw robot as red triangle arrow
+    var cx = offsetX + x * scale;
+    var cy = offsetY - y * scale;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(-yaw);
+    ctx.beginPath();
+    ctx.moveTo(20, 0);      // tip
+    ctx.lineTo(-12, -10);   // back left
+    ctx.lineTo(-12, 10);    // back right
+    ctx.closePath();
+    ctx.fillStyle = '#ff2222';
+    ctx.strokeStyle = '#660000';
+    ctx.lineWidth = 2;
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Separate render loop with frame rate limiting
+  function renderLoop() {
+    var now = Date.now();
+    if (now - lastRenderTime >= RENDER_INTERVAL) {
+      lastRenderTime = now;
+      drawRobot(robotPose.x, robotPose.y, robotPose.yaw);
+    }
+    requestAnimationFrame(renderLoop);
+  }
+  
+  // Start the render loop AFTER everything is initialized
+  renderLoop();
+
+  window.setMode = function(mode) {
+    var upper = mode.trim().toUpperCase();
+    // Publish command first (backend authoritative)
+    var msg = new ROSLIB.Message({ data: upper });
+    uiModeCmd.publish(msg);
+    console.log('[UI] Requested mode:', upper);
+    // Local optimistic highlight
+    var buttons = document.querySelectorAll('.mode-buttons button');
+    buttons.forEach(function(btn){ btn.classList.remove('active'); });
+    buttons.forEach(function(btn){
+      var label = btn.textContent.trim().toUpperCase();
+      if (label === 'NAVIGATE') label = 'NAVIGATION';
+      if (label === 'FOLLOW') label = 'FOLLOWING';
+      if (label === upper) btn.classList.add('active');
+    });
+    document.getElementById('currentMode').textContent = upper;
+  };
+
+  window.drive = function(linear, angular) {
+    var msg = new ROSLIB.Message({
+      linear: { x: linear, y: 0, z: 0 },
+      angular: { x: 0, y: 0, z: angular }
+    });
+    teleopCmd.publish(msg);
+  };
+
+  window.sendGoal = function() {
+    // Ensure we are in navigation mode
+    if (currentActiveMode !== 'NAVIGATION') {
+      console.warn('Not in NAVIGATION mode. Auto-switching before sending goal.');
+      window.setMode('NAVIGATION');
+      // Give backend time to process mode change then resend
+      setTimeout(window.sendGoal, 400);
+      return;
+    }
+    var x = parseFloat(document.getElementById('goalX').value);
+    var y = parseFloat(document.getElementById('goalY').value);
+    var yawDeg = parseFloat(document.getElementById('goalYaw').value);
+    
+    if (isNaN(x) || isNaN(y) || isNaN(yawDeg)) {
+      alert('Invalid goal coordinates');
+      return;
+    }
+    
+    // Update cached goal position for visualization
+    cachedGoalX = x;
+    cachedGoalY = y;
+    
+    var yaw = yawDeg * Math.PI / 180.0;
+    var qz = Math.sin(yaw / 2.0);
+    var qw = Math.cos(yaw / 2.0);
+
+    // Create proper timestamp
+    var now = new Date();
+    var secs = Math.floor(now.getTime() / 1000);
+    var nsecs = (now.getTime() % 1000) * 1000000;
+
+    var msg = new ROSLIB.Message({
+      header: { 
+        stamp: { sec: secs, nanosec: nsecs },
+        frame_id: 'odom' 
+      },
+      pose: {
+        position: { x: x, y: y, z: 0 },
+        orientation: { x: 0, y: 0, z: qz, w: qw }
+      }
+    });
+    
+    navGoal.publish(msg);
+    document.getElementById('goalStatus').textContent = 'SENT';
+    document.getElementById('goalStatus').style.color = '#ffaa00';
+    
+    console.log('[UI] Goal sent:', { x: x, y: y, yaw_deg: yawDeg });
+  };
+
+  window.cancelGoal = function() {
+    var msg = new ROSLIB.Message({
+      header: { frame_id: 'odom' },
+      pose: {
+        position: { x: 0, y: 0, z: 0 },
+        orientation: { x: 0, y: 0, z: 0, w: 1 }
+      }
+    });
+    navGoal.publish(msg);
+    document.getElementById('goalStatus').textContent = 'CANCELLED';
+    document.getElementById('goalStatus').style.color = '#ff4444';
+  };
+});
+</script>
+
+</body>
+</html>

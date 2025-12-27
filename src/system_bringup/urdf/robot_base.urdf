@@ -1,0 +1,707 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot
+  name="Shopping Cart Robot">
+  <link
+    name="base_link">
+    <inertial>
+      <origin
+        xyz="-0.000122868714757196 2.62852393762003E-06 -0.0413838350630157"
+        rpy="0 0 0" />
+      <mass
+        value="4.90310056097342" />
+      <inertia
+        ixx="0.0235608195540798"
+        ixy="-4.50857053016002E-08"
+        ixz="-1.23478347074685E-05"
+        iyy="0.0450669161415476"
+        iyz="-7.85844283748044E-08"
+        izz="0.0641169549367093" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://robot_bringup/meshes/base_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://robot_bringup/meshes/base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="left_wheel">
+    <inertial>
+      <origin
+        xyz="-1.26127485766681E-06 -1.15564992575479E-06 0.0172452443787352"
+        rpy="0 0 0" />
+      <mass
+        value="0.0713374663725933" />
+      <inertia
+        ixx="3.53073973522907E-05"
+        ixy="2.73868212041067E-10"
+        ixz="-1.09978237934604E-10"
+        iyy="3.5308173463739E-05"
+        iyz="-1.00797638352022E-10"
+        izz="5.723949489461E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://robot_bringup/meshes/left_wheel.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://robot_bringup/meshes/left_wheel.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="leftwheel"
+    type="continuous">
+    <origin
+      xyz="0.00656145183365686 0.166 -0.0500762565788667"
+      rpy="1.5707963267949 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="left_wheel" />
+    <axis
+      xyz="0 0 -1" />
+    <limit
+      effort="10"
+      velocity="10" />
+    <dynamics
+      damping="0.1"
+      friction="0.1" />
+  </joint>
+  <link
+    name="right_wheel">
+    <inertial>
+      <origin
+        xyz="1.70964649359728E-06 5.87356305814524E-08 -0.017245244378735"
+        rpy="0 0 0" />
+      <mass
+        value="0.0713374663725935" />
+      <inertia
+        ixx="3.53080519858895E-05"
+        ixy="-3.93099579519902E-10"
+        ixz="-1.49095143605942E-10"
+        iyy="3.53075188301403E-05"
+        iyz="-5.10047726556417E-12"
+        izz="5.72394948946101E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://robot_bringup/meshes/right_wheel.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://robot_bringup/meshes/right_wheel.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="rightwheel"
+    type="continuous">
+    <origin
+      xyz="0.00656145183365686 -0.166 -0.0500762565788665"
+      rpy="1.5707963267949 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="right_wheel" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      effort="10"
+      velocity="10" />
+    <dynamics
+      damping="0.1"
+      friction="0.1" />
+  </joint>
+  <link
+    name="lidar_front_right">
+    <inertial>
+      <origin
+        xyz="0.0051605024085174 0.00198210487984474 0.010673607887524"
+        rpy="0 0 0" />
+      <mass
+        value="0.0260070168506664" />
+      <inertia
+        ixx="8.0045593243954E-06"
+        ixy="7.04199920031299E-07"
+        ixz="-1.46734102314544E-07"
+        iyy="6.37346831220101E-06"
+        iyz="-5.42140743145195E-08"
+        izz="1.33876434651548E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://robot_bringup/meshes/lidar_front_right.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.298039215686275 0.298039215686275 0.298039215686275 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://robot_bringup/meshes/lidar_front_right.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="lidar1"
+    type="continuous">
+    <origin
+      xyz="0.136139650045003 -0.0861403499550002 -0.0264"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="lidar_front_right" />
+    <axis
+      xyz="0 0 1" />
+  </joint>
+  <link
+    name="lidar_front_left">
+    <inertial>
+      <origin
+        xyz="0.00516120877636794 0.00198140446301354 0.0106736070286015"
+        rpy="0 0 0" />
+      <mass
+        value="0.0260070151534254" />
+      <inertia
+        ixx="8.00456316514968E-06"
+        ixy="7.04196094789095E-07"
+        ixz="-1.46734268993807E-07"
+        iyy="6.37346857573232E-06"
+        iyz="-5.42137811192566E-08"
+        izz="1.33876478767902E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://robot_bringup/meshes/lidar_front_left.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.298039215686275 0.298039215686275 0.298039215686275 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://robot_bringup/meshes/lidar_front_left.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="lidar2"
+    type="continuous">
+    <origin
+      xyz="0.136139650045006 0.0861403499549938 -0.0264"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="lidar_front_left" />
+    <axis
+      xyz="0 0 1" />
+  </joint>
+  <link
+    name="lidar_back_left">
+    <inertial>
+      <origin
+        xyz="-0.00516047917148299 -0.00198209986151632 0.0106736091298476"
+        rpy="0 0 0" />
+      <mass
+        value="0.0260070250802488" />
+      <inertia
+        ixx="8.0045605976911E-06"
+        ixy="7.04202570872825E-07"
+        ixz="1.46734051492744E-07"
+        iyy="6.3734694098881E-06"
+        iyz="5.42139113549989E-08"
+        izz="1.3387646137251E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://robot_bringup/meshes/lidar_back_left.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.298039215686275 0.298039215686275 0.298039215686275 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://robot_bringup/meshes/lidar_back_left.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="lidar3"
+    type="continuous">
+    <origin
+      xyz="-0.136140349954999 0.0861396500450031 -0.0264"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="lidar_back_left" />
+    <axis
+      xyz="0 0 1" />
+  </joint>
+  <link
+    name="lidar_back_right">
+    <inertial>
+      <origin
+        xyz="-0.00516050029324233 -0.00198210451795378 0.0106736094847588"
+        rpy="0 0 0" />
+      <mass
+        value="0.0260070238651023" />
+      <inertia
+        ixx="8.00456434786668E-06"
+        ixy="7.04200334948601E-07"
+        ixz="1.46734471680288E-07"
+        iyy="6.37346745596087E-06"
+        iyz="5.42141135714579E-08"
+        izz="1.33876476237687E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://robot_bringup/meshes/lidar_back_right.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.298039215686275 0.298039215686275 0.298039215686275 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://robot_bringup/meshes/lidar_back_right.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="lidar4"
+    type="continuous">
+    <origin
+      xyz="-0.13613965004501 -0.0861403499549971 -0.0264000000000001"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="lidar_back_right" />
+    <axis
+      xyz="0 0 1" />
+  </joint>
+  <link
+    name="front_caster">
+    <inertial>
+      <origin
+        xyz="-0.00293102814090718 0.000187635424663046 -0.00267382140032002"
+        rpy="0 0 0" />
+      <mass
+        value="0.0107307157974003" />
+      <inertia
+        ixx="8.30877827719511E-07"
+        ixy="-8.4950869009012E-09"
+        ixz="-1.52528140984461E-07"
+        iyy="6.98728108979994E-07"
+        iyz="9.76241891129006E-09"
+        izz="1.11769202362738E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://robot_bringup/meshes/front_caster.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 0.949019607843137 0.909803921568627 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://robot_bringup/meshes/front_caster.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="frontcasterjoint"
+    type="continuous">
+    <origin
+      xyz="0.14 0 -0.0620000000000001"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="front_caster" />
+    <axis
+      xyz="0 0 -1" />
+    <limit
+      effort="10"
+      velocity="10" />
+  </joint>
+  <link
+    name="front_caster_wheel">
+    <inertial>
+      <origin
+        xyz="-0.000585280879782935 2.22044604925031E-16 0.00914090716608351"
+        rpy="0 0 0" />
+      <mass
+        value="0.00725733761200358" />
+      <inertia
+        ixx="2.68007644754707E-07"
+        ixy="-2.00364612489944E-23"
+        ixz="5.04628224001308E-09"
+        iyy="2.68330751909763E-07"
+        iyz="2.19363112172277E-23"
+        izz="1.89517998780135E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://robot_bringup/meshes/front_caster_wheel.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://robot_bringup/meshes/front_caster_wheel.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="frontcasterwheeljoint"
+    type="continuous">
+    <origin
+      xyz="-0.0128973307994271 0.00984422969308141 -0.013"
+      rpy="1.5707963267949 0 0" />
+    <parent
+      link="front_caster" />
+    <child
+      link="front_caster_wheel" />
+    <axis
+      xyz="-0.063897905647706 0 0.997956440759734" />
+    <limit
+      effort="10"
+      velocity="10" />
+  </joint>
+  <link
+    name="back_caster">
+    <inertial>
+      <origin
+        xyz="-0.00611942331107951 0.000316287435765839 -0.00579240800974468"
+        rpy="0 0 0" />
+      <mass
+        value="0.0153736904053634" />
+      <inertia
+        ixx="9.87431414484365E-07"
+        ixy="-1.66277762220472E-08"
+        ixz="-1.52528140984491E-07"
+        iyy="7.28786213471285E-07"
+        iyz="9.76241891128318E-09"
+        izz="1.27476633634146E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://robot_bringup/meshes/back_caster.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 0.949019607843137 0.909803921568627 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://robot_bringup/meshes/back_caster.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="backcasterjoint"
+    type="continuous">
+    <origin
+      xyz="-0.140000000000001 0 -0.0619999999999999"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="back_caster" />
+    <axis
+      xyz="0 0 -1" />
+    <limit
+      effort="10"
+      velocity="10" />
+  </joint>
+  <link
+    name="back_caster_wheel">
+    <inertial>
+      <origin
+        xyz="-0.000575081150829271 0 0.00898160796683767"
+        rpy="0 0 0" />
+      <mass
+        value="0.00261436300403997" />
+      <inertia
+        ixx="1.11454057989787E-07"
+        ixy="-1.44980488213741E-23"
+        ixz="-3.08640708114532E-09"
+        iyy="1.11256439195613E-07"
+        iyz="7.98472824418931E-24"
+        izz="1.59459894288764E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://robot_bringup/meshes/back_caster_wheel.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://robot_bringup/meshes/back_caster_wheel.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="backcasterwheeljoint"
+    type="continuous">
+    <origin
+      xyz="-0.0128973307994271 0.00984422969308141 -0.013"
+      rpy="1.5707963267949 0 0" />
+    <parent
+      link="back_caster" />
+    <child
+      link="back_caster_wheel" />
+    <axis
+      xyz="-0.063897905647706 0 0.997956440759734" />
+    <limit
+      effort="10"
+      velocity="10" />
+  </joint>
+  <link
+    name="top_link">
+    <inertial>
+      <origin
+        xyz="0.0478272175499812 -3.03668918899547E-08 0.111396115655374"
+        rpy="0 0 0" />
+      <mass
+        value="4.55501076764544" />
+      <inertia
+        ixx="0.0812506528270066"
+        ixy="1.26648249599819E-09"
+        ixz="-0.0159688981308726"
+        iyy="0.077610812926865"
+        iyz="2.12730719393052E-08"
+        izz="0.0636029505276083" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://robot_bringup/meshes/top_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://robot_bringup/meshes/top_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="toplinkjoint"
+    type="fixed">
+    <origin
+      xyz="-0.000243515949483131 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="top_link" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+  <link
+    name="panel_link">
+    <inertial>
+      <origin
+        xyz="-0.00506217356830629 8.88178419700125E-16 -0.002116955987572"
+        rpy="0 0 0" />
+      <mass
+        value="0.621800341754816" />
+      <inertia
+        ixx="0.00645682996871177"
+        ixy="-5.45321357046846E-20"
+        ixz="-1.65086293311559E-07"
+        iyy="0.00367952307992802"
+        iyz="-3.89802346021206E-18"
+        izz="0.00278803146795643" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://robot_bringup/meshes/panel_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://robot_bringup/meshes/panel_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="panellinkjoint"
+    type="fixed">
+    <origin
+      xyz="0.175243515949483 0 0.145225075633242"
+      rpy="0 0 0" />
+    <parent
+      link="top_link" />
+    <child
+      link="panel_link" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+</robot>
