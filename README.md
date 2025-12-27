@@ -36,6 +36,7 @@ The project makes use of both custom packages and community-based packages.
 - **Mode manager C++ package** -> Dynamically manages the robot's operation modes.
 - **Scan merger C++ package** -> Merges data from the 4 LiDARs.
 - **System launcher package** -> Launches all nodes based on specific conditions.
+
 [*Other packages are still in development*]
 
 ## Simulation
