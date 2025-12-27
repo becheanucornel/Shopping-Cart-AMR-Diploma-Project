@@ -1,4 +1,6 @@
 # Shopping Cart AMR - Diploma Project
+![ROS2 Jazzy](https://img.shields.io/badge/ROS2-Jazzy-green?style=flat-square&logo=ros)
+![NVIDIA Isaac Sim](https://img.shields.io/badge/NVIDIA%20Isaac%20Sim-5.1.0-76B900?style=flat-square&logo=nvidia)
 ## [ONGOING DEV]
 
 Robots have undeniably made our lives better. As years pass, new types of robots appear that assist humans even more.
