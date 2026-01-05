@@ -165,6 +165,7 @@ def generate_launch_description():
         package='web_server',
         executable='web_server_node',
         name='web_server',
+        parameters=[{'port': 8080}],
         output='screen',
     )
     
@@ -259,7 +260,7 @@ def generate_launch_description():
     ld.add_action(declare_use_startup_delays_arg)
     
     # Stage 1: Core robot description and state publisher
-    ld.add_action(LogInfo(msg="[Stage 1/7] Starting robot state publisher..."))
+    ld.add_action(LogInfo(msg="[Stage 1/6] Starting robot state publisher..."))
     ld.add_action(robot_state_publisher)
     ld.add_action(joint_state_publisher)
     ld.add_action(joint_state_publisher_gui)
@@ -270,7 +271,7 @@ def generate_launch_description():
     ld.add_action(TimerAction(
         period=1.5,
         actions=[
-            LogInfo(msg="[Stage 3/7] Starting sensors (scan_merger)..."),
+            LogInfo(msg="[Stage 3/6] Starting sensors (scan_merger)..."),
             scan_merger
         ]
     ))
@@ -279,7 +280,7 @@ def generate_launch_description():
     ld.add_action(TimerAction(
         period=2.5,
         actions=[
-            LogInfo(msg="[Stage 4/7] Starting navigation container, mode manager, and SLAM..."),
+            LogInfo(msg="[Stage 4/6] Starting navigation container, mode manager, and SLAM..."),
             nav2_container,
             mode_manager,
             slam_toolbox_node,
@@ -290,11 +291,17 @@ def generate_launch_description():
     ld.add_action(TimerAction(
         period=3.5,
         actions=[
-            LogInfo(msg="[Stage 5/7] Loading Nav2 composable nodes..."),
+            LogInfo(msg="[Stage 5/6] Loading Nav2 composable nodes..."),
             load_nav2_nodes
         ]
     ))
     
     # TODO WEB UI
+    ld.add_action(TimerAction(
+        period=1.0,
+        actions=[LogInfo(msg="[Stage 6/6] Starting web server..."),
+        web_server
+        ]
+    ))
     
     return ld
