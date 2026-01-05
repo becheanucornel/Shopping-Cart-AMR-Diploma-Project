@@ -22,44 +22,34 @@ public:
 
     ModeManager() : Node("mode_manager")
     {
-        // Initialize State
+        // Initialize modes
+        modes_ = {"IDLE", "MANUAL", "SLAM", "NAVIGATION", "FOLLOWING"};
         current_mode_ = "IDLE";
-        modes_ = {"IDLE", "MANUAL", "FOLLOWING", "NAVIGATION"};
 
-        // Publishers
-        mode_publisher_ = this->create_publisher<std_msgs::msg::String>("robot_mode", 10);
-        cmd_vel_publisher_ = this->create_publisher<geometry_msgs::msg::Twist>("cmd_vel", 10);
+        // Create publishers
+        mode_publisher_ = this->create_publisher<std_msgs::msg::String>("/mode", 10);
+        cmd_vel_publisher_ = this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
 
-        // Service
+        // Create service
         mode_service_ = this->create_service<mode_manager_interfaces::srv::SetMode>(
-            "set_mode",
+            "/set_mode",
             std::bind(&ModeManager::handle_set_mode, this, _1, _2));
 
-        // Subscribers
+        // Create subscriptions
         teleop_subscriber_ = this->create_subscription<geometry_msgs::msg::Twist>(
-            "teleop/cmd_vel",
-            10,
-            std::bind(&ModeManager::teleop_callback, this, _1));
+            "/teleop_cmd", 10, std::bind(&ModeManager::teleop_callback, this, _1));
 
-        // UI Mode Subscribers (Absolute and Relative)
         ui_mode_subscriber_abs_ = this->create_subscription<std_msgs::msg::String>(
-            "/ui_mode_command",
-            10,
-            std::bind(&ModeManager::ui_mode_callback, this, _1));
+            "/ui/mode/absolute", 10, std::bind(&ModeManager::ui_mode_callback, this, _1));
 
         ui_mode_subscriber_rel_ = this->create_subscription<std_msgs::msg::String>(
-            "ui_mode_command",
-            10,
-            std::bind(&ModeManager::ui_mode_callback, this, _1));
+            "/ui/mode/relative", 10, std::bind(&ModeManager::ui_mode_callback, this, _1));
 
-        // Action Client
         nav_to_pose_client_ = rclcpp_action::create_client<NavigateToPose>(
-            this,
-            "navigate_to_pose");
+            this, "navigate_to_pose");
 
-        // Initial Publish
-        publish_current_mode();
         RCLCPP_INFO(this->get_logger(), "Mode Manager started, current mode: %s", current_mode_.c_str());
+        publish_current_mode();
     }
 
 private:
@@ -94,28 +84,51 @@ private:
         const std::shared_ptr<mode_manager_interfaces::srv::SetMode::Request> request,
         std::shared_ptr<mode_manager_interfaces::srv::SetMode::Response> response)
     {
-        // Check if requested mode is in the allowed list
-        bool valid_mode = false;
-        for (const auto & m : modes_) {
-            if (m == request->mode) {
-                valid_mode = true;
-                break;
+        std::string requested_mode = request->mode;
+
+        // Check if mode is valid
+        auto it = std::find(modes_.begin(), modes_.end(), requested_mode);
+        if (it == modes_.end()) {
+            RCLCPP_WARN(this->get_logger(), "Invalid mode requested: %s", requested_mode.c_str());
+            response->success = false;
+            return;
+        }
+
+        // Stop current mode
+        if (current_mode_ == "MANUAL") {
+            geometry_msgs::msg::Twist stop_msg;
+            cmd_vel_publisher_->publish(stop_msg);
+        } else if (current_mode_ == "NAVIGATION" || current_mode_ == "FOLLOWING") {
+            if (current_goal_handle_) {
+                auto future_cancel = nav_to_pose_client_->async_cancel_goal(current_goal_handle_);
+                current_goal_handle_ = nullptr;
             }
         }
 
-        if (valid_mode) {
-            if (current_mode_ == "NAVIGATION" && request->mode != "NAVIGATION") {
-                cancel_navigation();
-            }
-            
-            current_mode_ = request->mode;
-            publish_current_mode();
-            RCLCPP_INFO(this->get_logger(), "Switching to %s mode", current_mode_.c_str());
-            response->success = true;
-        } else {
-            RCLCPP_WARN(this->get_logger(), "Invalid mode requested: %s", request->mode.c_str());
-            response->success = false;
+        // Activate new mode
+        current_mode_ = requested_mode;
+
+        if (requested_mode == "IDLE") {
+            RCLCPP_INFO(this->get_logger(), "Switching to IDLE mode");
+            geometry_msgs::msg::Twist stop_msg;
+            cmd_vel_publisher_->publish(stop_msg);
+        } 
+        else if (requested_mode == "MANUAL") {
+            RCLCPP_INFO(this->get_logger(), "Switching to MANUAL mode - Ready for teleop commands");
+        } 
+        else if (requested_mode == "SLAM") {
+            RCLCPP_INFO(this->get_logger(), "Switching to SLAM mode - Mapping in progress");
+            RCLCPP_INFO(this->get_logger(), "SLAM Toolbox is active and building map. Drive the robot to explore.");
+        } 
+        else if (requested_mode == "NAVIGATION") {
+            RCLCPP_INFO(this->get_logger(), "Switching to NAVIGATION mode");
+        } 
+        else if (requested_mode == "FOLLOWING") {
+            RCLCPP_INFO(this->get_logger(), "Switching to FOLLOWING mode");
         }
+
+        publish_current_mode();
+        response->success = true;
     }
 
     void ui_mode_callback(const std_msgs::msg::String::SharedPtr msg)

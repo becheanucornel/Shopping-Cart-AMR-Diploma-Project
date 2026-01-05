@@ -2,6 +2,18 @@ slam_toolbox:
   ros__parameters:
     # SLAM parameters
     use_sim_time: true
+    odom_frame: odom
+    base_frame: base_link
+    map_frame: map
+    
+    # Increase processing capacity
+    tf_buffer_size: 50
+    transform_timeout: 1.0
+    
+    # Skip more scans to reduce processing load
+    scan_buffer_size: 3
+    minimum_travel_distance: 1.0
+    minimum_travel_heading: 1.0
     
     # Solver parameters
     solver_plugin: solver_plugins::CeresSolver

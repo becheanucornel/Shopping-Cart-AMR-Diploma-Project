@@ -77,6 +77,18 @@ def generate_launch_description():
         description='Full path to SLAM Toolbox parameters file'
     )
     
+    declare_map_file_arg = DeclareLaunchArgument(
+        'map_file',
+        default_value=os.path.join(system_bringup_dir, 'map', 'sim_map.yaml'),
+        description='Full path to map YAML file for localization'
+    )
+    
+    declare_slam_mode_arg = DeclareLaunchArgument(
+        'slam_mode',
+        default_value='localization',
+        description='SLAM mode: localization or mapping'
+    )
+
     declare_gui_arg = DeclareLaunchArgument(
         'gui',
         default_value='false',
@@ -137,9 +149,6 @@ def generate_launch_description():
         ]))
     )
     
-    # TODO Differential Drive Node
-    
-    
     # Mode manager
     mode_manager = Node(
         package='mode_manager_module',
@@ -192,27 +201,34 @@ def generate_launch_description():
                 package='nav2_controller',
                 plugin='nav2_controller::ControllerServer',
                 name='controller_server',
-                parameters=[LaunchConfiguration('nav2_params_file')]
+                parameters=[nav2_params_file, {'use_sim_time': LaunchConfiguration('use_sim_time')}]
             ),
             ComposableNode(
                 package='nav2_planner',
                 plugin='nav2_planner::PlannerServer',
                 name='planner_server',
-                parameters=[LaunchConfiguration('nav2_params_file')]
+                parameters=[nav2_params_file, {'use_sim_time': LaunchConfiguration('use_sim_time')}]
+            ),
+            ComposableNode(
+                package='nav2_behaviors',
+                plugin='behavior_server::BehaviorServer',
+                name='behavior_server',
+                parameters=[nav2_params_file, {'use_sim_time': LaunchConfiguration('use_sim_time')}]
             ),
             ComposableNode(
                 package='nav2_bt_navigator',
                 plugin='nav2_bt_navigator::BtNavigator',
                 name='bt_navigator',
-                parameters=[LaunchConfiguration('nav2_params_file')]
+                parameters=[nav2_params_file, {'use_sim_time': LaunchConfiguration('use_sim_time')}]
             ),
             ComposableNode(
                 package='nav2_lifecycle_manager',
                 plugin='nav2_lifecycle_manager::LifecycleManager',
                 name='lifecycle_manager_navigation',
                 parameters=[{
-                    'autostart': LaunchConfiguration('autostart'),
-                    'node_names': ['controller_server', 'planner_server', 'bt_navigator']
+                    'use_sim_time': LaunchConfiguration('use_sim_time'),
+                    'autostart': True,
+                    'node_names': ['controller_server', 'planner_server', 'behavior_server', 'bt_navigator']
                 }]
             ),
         ],
@@ -221,33 +237,118 @@ def generate_launch_description():
         ]))
     )
     
-    # SLAM Toolbox
-    slam_toolbox_node = Node(
-        package='slam_toolbox',
-        executable='sync_slam_toolbox_node',
-        name='slam_toolbox',
-        parameters=['/home/apollo/licenta/src/robot_bringup/config/slam_toolbox.yaml'],
-        output='screen'
+    # Map Server Node - Publishes the map
+    map_server_node = Node(
+        package='nav2_map_server',
+        executable='map_server',
+        name='map_server',
+        output='screen',
+        parameters=[
+            {
+                'yaml_filename': LaunchConfiguration('map_file'),
+                'use_sim_time': LaunchConfiguration('use_sim_time'),
+            }
+        ],
+        condition=IfCondition(PythonExpression([
+            "'", LaunchConfiguration('slam_mode'), "' == 'localization'"
+        ]))
     )
     
+    # AMCL Node for localization
+    amcl_node = Node(
+        package='nav2_amcl',
+        executable='amcl',
+        name='amcl',
+        output='screen',
+        parameters=[
+            {
+                'use_sim_time': LaunchConfiguration('use_sim_time'),
+                'base_frame_id': 'base_link',
+                'odom_frame_id': 'odom',
+                'global_frame_id': 'map',
+                'robot_model_type': 'nav2_amcl::DifferentialMotionModel',
+                'set_initial_pose': True,
+                'initial_pose.x': 0.0,
+                'initial_pose.y': 0.0,
+                'initial_pose.yaw': 0.0,
+                'always_reset_initial_pose': True,
+                'tf_broadcast': True,
+            }
+        ],
+        condition=IfCondition(PythonExpression([
+            "'", LaunchConfiguration('slam_mode'), "' == 'localization'"
+        ]))
+    )
+    
+    # Lifecycle manager for map_server and AMCL
+    map_server_lifecycle = Node(
+        package='nav2_lifecycle_manager',
+        executable='lifecycle_manager',
+        name='lifecycle_manager_localization',
+        output='screen',
+        parameters=[
+            {
+                'use_sim_time': LaunchConfiguration('use_sim_time'),
+                'autostart': True,
+                'node_names': ['map_server', 'amcl']
+            }
+        ],
+        condition=IfCondition(PythonExpression([
+            "'", LaunchConfiguration('slam_mode'), "' == 'localization'"
+        ]))
+    )
+
+    # SLAM Toolbox - Localization mode
+    slam_toolbox_node = Node(
+        package='slam_toolbox',
+        executable='localization_slam_toolbox_node',
+        name='slam_toolbox',
+        output='screen',
+        parameters=[
+            {
+                'use_sim_time': LaunchConfiguration('use_sim_time'),
+                'map_file_name': LaunchConfiguration('map_file'),
+                'map_start_at_dock': False,
+                'odom_frame': 'odom',
+                'base_frame': 'base_link',
+                'map_frame': 'map',
+            }
+        ],
+        condition=IfCondition(PythonExpression([
+            "'", LaunchConfiguration('slam_mode'), "' == 'localization'"
+        ]))
+    )
+    
+    # SLAM Toolbox - Async mapping mode
+    slam_toolbox_mapping = Node(
+        package='slam_toolbox',
+        executable='async_slam_toolbox_node',
+        name='slam_toolbox',
+        output='screen',
+        parameters=[
+            LaunchConfiguration('slam_params_file'),
+            {
+                'use_sim_time': LaunchConfiguration('use_sim_time'),
+                'map_start_at_dock': False,
+            }
+        ],
+        condition=IfCondition(PythonExpression([
+            "'", LaunchConfiguration('slam_mode'), "' == 'mapping'"
+        ]))
+    )
+
     # ROSBridge WebSocket server
-    rosbridge_nodes = []
-    if _has_pkg('rosbridge_server'):
-        rosbridge_websocket = Node(
-            package='rosbridge_server',
-            executable='rosbridge_websocket',
-            name='rosbridge_websocket',
-            output='screen',
-            parameters=[{'port': 9090, 'delay_between_messages': 0.0}],
-            condition=IfCondition(PythonExpression([
-                "'", LaunchConfiguration('web_ui'), "' == 'true' or '",
-                LaunchConfiguration('mode'), "' == 'ui_only'"
-            ]))
-        )
-        rosbridge_nodes.append(rosbridge_websocket)
+    rosbridge_websocket = Node(
+        package='rosbridge_server',
+        executable='rosbridge_websocket',
+        name='rosbridge_websocket',
+        output='screen',
+        parameters=[{'port': 9090, 'delay_between_messages': 0.0}]
+    )
     
     # Build Launch Description
     ld = LaunchDescription()
+    
     # Add launch arguments
     ld.add_action(declare_mode_arg)
     ld.add_action(declare_use_sim_time_arg)
@@ -255,6 +356,8 @@ def generate_launch_description():
     ld.add_action(declare_autostart_arg)
     ld.add_action(declare_nav2_params_arg)
     ld.add_action(declare_slam_params_arg)
+    ld.add_action(declare_map_file_arg)
+    ld.add_action(declare_slam_mode_arg)
     ld.add_action(declare_gui_arg)
     ld.add_action(declare_merge_scans_arg)
     ld.add_action(declare_use_startup_delays_arg)
@@ -265,8 +368,6 @@ def generate_launch_description():
     ld.add_action(joint_state_publisher)
     ld.add_action(joint_state_publisher_gui)
     
-    # TODO Stage 2: Differential Drive Module
-    
     # Stage 3: Sensors after motion control (1.5s delay)
     ld.add_action(TimerAction(
         period=1.5,
@@ -276,14 +377,17 @@ def generate_launch_description():
         ]
     ))
     
-    # Stage 4: Navigation stack and mode manager (2.5s delay)
+    # Stage 4: Navigation and localization
     ld.add_action(TimerAction(
         period=2.5,
         actions=[
-            LogInfo(msg="[Stage 4/6] Starting navigation container, mode manager, and SLAM..."),
+            LogInfo(msg="[Stage 4/6] Starting navigation, map server, and localization..."),
             nav2_container,
             mode_manager,
-            slam_toolbox_node,
+            map_server_node,
+            amcl_node,
+            map_server_lifecycle,
+            slam_toolbox_mapping,
         ]
     ))
     
@@ -296,11 +400,13 @@ def generate_launch_description():
         ]
     ))
     
-    # TODO WEB UI
+    # Stage 6: Web server and rosbridge
     ld.add_action(TimerAction(
         period=1.0,
-        actions=[LogInfo(msg="[Stage 6/6] Starting web server..."),
-        web_server
+        actions=[
+            LogInfo(msg="[Stage 6/6] Starting web server..."),
+            web_server,
+            rosbridge_websocket
         ]
     ))
     

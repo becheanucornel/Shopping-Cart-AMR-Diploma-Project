@@ -2,21 +2,22 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>web_server</name>
-  <version>0.0.1</version>
-  <description>ROS2 web server for mobile robot interface</description>
-  <maintainer email="user@example.com">Your Name</maintainer>
+  <version>0.0.0</version>
+  <description>Web server for robot control</description>
+  <maintainer email="apollo@example.com">apollo</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>rclcpp</depend>
   <depend>rclcpp_components</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>std_msgs</depend>
   <depend>ament_index_cpp</depend>
-  <depend>libboost-dev</depend>
-  <depend>libboost-system-dev</depend>
 
-  <test_depend>ament_lint_auto</test_depend>
-  <test_depend>ament_lint_common</test_depend>
+  <build_depend>Boost</build_depend>
+  <exec_depend>Boost</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>
