@@ -6,7 +6,8 @@
                 "${workspaceFolder}/**",
                 "/opt/ros/jazzy/include/**",
                 "/usr/include/**",
-                "/opt/ros/jazzy/include/std_msgs"
+                "/opt/ros/jazzy/include/std_msgs",
+                "/opt/ros/jazzy/include/rclcpp"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/gcc",
