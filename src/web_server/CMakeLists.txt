@@ -8,10 +8,13 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED)
+find_package(rclcpp_action REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(nav2_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(ament_index_cpp REQUIRED)
+find_package(tf2_ros REQUIRED)
 find_package(Boost REQUIRED)
 
 add_library(web_server_lib SHARED
@@ -26,10 +29,13 @@ target_include_directories(web_server_lib PUBLIC
 ament_target_dependencies(web_server_lib
   rclcpp
   rclcpp_components
+  rclcpp_action
   geometry_msgs
+  nav2_msgs
   nav_msgs
   std_msgs
   ament_index_cpp
+  tf2_ros
   Boost
 )
 

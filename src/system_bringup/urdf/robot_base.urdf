@@ -3,22 +3,38 @@
      Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
      For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
 <robot
-  name="Shopping Cart Robot">
+  name="URDF_RobotDiploma">
+
+  <!-- ==================================================================== -->
+  <!-- Baza imaginara lipita de podea (Z=0) pentru ROS Nav2 / Odometry      -->
+  <!-- ==================================================================== -->
+  <link name="base_footprint"/>
+
+  <!-- Legatura fixa dintre podea si centrul sasiului (base_link) -->
+  <!-- Am pus un Z de 0.05 m ca exemplu (5 cm garda la sol). Ajusteaza aceasta valoare 
+       in functie de inaltimea reala a originii base_link fata de sol in design-ul tau CAD -->
+  <joint name="base_footprint_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 0.05" rpy="0 0 0"/> 
+  </joint>
+  <!-- ==================================================================== -->
+
   <link
     name="base_link">
     <inertial>
       <origin
-        xyz="-0.000122868714757196 2.62852393762003E-06 -0.0413838350630157"
+        xyz="-0.026463 3.6566E-05 0.03414"
         rpy="0 0 0" />
       <mass
-        value="4.90310056097342" />
+        value="7.4355" />
       <inertia
-        ixx="0.0235608195540798"
-        ixy="-4.50857053016002E-08"
-        ixz="-1.23478347074685E-05"
-        iyy="0.0450669161415476"
-        iyz="-7.85844283748044E-08"
-        izz="0.0641169549367093" />
+        ixx="0.056484"
+        ixy="6.4615E-06"
+        ixz="-5.87E-06"
+        iyy="0.060533"
+        iyz="9.8272E-07"
+        izz="0.11039" />
     </inertial>
     <visual>
       <origin
@@ -26,12 +42,12 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://robot_bringup/meshes/base_link.STL" />
+          filename="package://URDF_RobotDiploma/meshes/base_link.STL" />
       </geometry>
       <material
         name="">
         <color
-          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+          rgba="0.79216 0.81961 0.93333 1" />
       </material>
     </visual>
     <collision>
@@ -40,7 +56,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://robot_bringup/meshes/base_link.STL" />
+          filename="package://URDF_RobotDiploma/meshes/base_link.STL" />
       </geometry>
     </collision>
   </link>
@@ -48,17 +64,17 @@
     name="left_wheel">
     <inertial>
       <origin
-        xyz="-1.26127485766681E-06 -1.15564992575479E-06 0.0172452443787352"
+        xyz="1.11022302462516E-16 0 0.0199910644703378"
         rpy="0 0 0" />
       <mass
-        value="0.0713374663725933" />
+        value="0.533369044032681" />
       <inertia
-        ixx="3.53073973522907E-05"
-        ixy="2.73868212041067E-10"
-        ixz="-1.09978237934604E-10"
-        iyy="3.5308173463739E-05"
-        iyz="-1.00797638352022E-10"
-        izz="5.723949489461E-05" />
+        ixx="0.000644318336040828"
+        ixy="-1.64067035199278E-20"
+        ixz="7.27107140820734E-19"
+        iyy="0.000644318336040828"
+        iyz="-1.48748557576194E-20"
+        izz="0.00113949034885603" />
     </inertial>
     <visual>
       <origin
@@ -66,7 +82,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://robot_bringup/meshes/left_wheel.STL" />
+          filename="package://URDF_RobotDiploma/meshes/left_wheel.STL" />
       </geometry>
       <material
         name="">
@@ -80,7 +96,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://robot_bringup/meshes/left_wheel.STL" />
+          filename="package://URDF_RobotDiploma/meshes/left_wheel.STL" />
       </geometry>
     </collision>
   </link>
@@ -88,8 +104,8 @@
     name="leftwheel"
     type="continuous">
     <origin
-      xyz="0.00656145183365686 0.166 -0.0500762565788667"
-      rpy="1.5707963267949 0 0" />
+      xyz="0.00033999 0.194 0.013"
+      rpy="1.5708 0 0" />
     <parent
       link="base_link" />
     <child
@@ -107,17 +123,17 @@
     name="right_wheel">
     <inertial>
       <origin
-        xyz="1.70964649359728E-06 5.87356305814524E-08 -0.017245244378735"
+        xyz="-1.11022302462516E-16 -1.11022302462516E-16 -0.0199910644703378"
         rpy="0 0 0" />
       <mass
-        value="0.0713374663725935" />
+        value="0.533369044032682" />
       <inertia
-        ixx="3.53080519858895E-05"
-        ixy="-3.93099579519902E-10"
-        ixz="-1.49095143605942E-10"
-        iyy="3.53075188301403E-05"
-        iyz="-5.10047726556417E-12"
-        izz="5.72394948946101E-05" />
+        ixx="0.000644318336040828"
+        ixy="3.38766232093726E-20"
+        ixz="-3.58450363187393E-20"
+        iyy="0.000644318336040828"
+        iyz="2.15962577337496E-19"
+        izz="0.00113949034885603" />
     </inertial>
     <visual>
       <origin
@@ -125,7 +141,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://robot_bringup/meshes/right_wheel.STL" />
+          filename="package://URDF_RobotDiploma/meshes/right_wheel.STL" />
       </geometry>
       <material
         name="">
@@ -139,7 +155,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://robot_bringup/meshes/right_wheel.STL" />
+          filename="package://URDF_RobotDiploma/meshes/right_wheel.STL" />
       </geometry>
     </collision>
   </link>
@@ -147,8 +163,8 @@
     name="rightwheel"
     type="continuous">
     <origin
-      xyz="0.00656145183365686 -0.166 -0.0500762565788665"
-      rpy="1.5707963267949 0 0" />
+      xyz="0.00045567 -0.194 0.013"
+      rpy="1.5708 0 0" />
     <parent
       link="base_link" />
     <child
@@ -166,17 +182,17 @@
     name="lidar_front_right">
     <inertial>
       <origin
-        xyz="0.0051605024085174 0.00198210487984474 0.010673607887524"
+        xyz="-7.74830551633077E-05 4.36272751258571E-08 -0.00493051065766359"
         rpy="0 0 0" />
       <mass
-        value="0.0260070168506664" />
+        value="0.102513137152156" />
       <inertia
-        ixx="8.0045593243954E-06"
-        ixy="7.04199920031299E-07"
-        ixz="-1.46734102314544E-07"
-        iyy="6.37346831220101E-06"
-        iyz="-5.42140743145195E-08"
-        izz="1.33876434651548E-05" />
+        ixx="3.50509943398837E-05"
+        ixy="-8.9269734957859E-11"
+        ixz="-1.05223236289025E-07"
+        iyy="3.53118195431653E-05"
+        iyz="1.21196190243834E-11"
+        izz="4.34973495030288E-05" />
     </inertial>
     <visual>
       <origin
@@ -184,12 +200,12 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://robot_bringup/meshes/lidar_front_right.STL" />
+          filename="package://URDF_RobotDiploma/meshes/lidar_front_right.STL" />
       </geometry>
       <material
         name="">
         <color
-          rgba="0.298039215686275 0.298039215686275 0.298039215686275 1" />
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
       </material>
     </visual>
     <collision>
@@ -198,38 +214,38 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://robot_bringup/meshes/lidar_front_right.STL" />
+          filename="package://URDF_RobotDiploma/meshes/lidar_front_right.STL" />
       </geometry>
     </collision>
   </link>
   <joint
     name="lidar1"
-    type="continuous">
+    type="fixed">
     <origin
-      xyz="0.136139650045003 -0.0861403499550002 -0.0264"
+      xyz="0.143897827735137 -0.1185 0.0232921469155075"
       rpy="0 0 0" />
     <parent
       link="base_link" />
     <child
       link="lidar_front_right" />
     <axis
-      xyz="0 0 1" />
+      xyz="0 0 0" />
   </joint>
   <link
     name="lidar_front_left">
     <inertial>
       <origin
-        xyz="0.00516120877636794 0.00198140446301354 0.0106736070286015"
+        xyz="-7.74812884845044E-05 4.4920380526392E-08 -0.00493050947644635"
         rpy="0 0 0" />
       <mass
-        value="0.0260070151534254" />
+        value="0.102513124786789" />
       <inertia
-        ixx="8.00456316514968E-06"
-        ixy="7.04196094789095E-07"
-        ixz="-1.46734268993807E-07"
-        iyy="6.37346857573232E-06"
-        iyz="-5.42137811192566E-08"
-        izz="1.33876478767902E-05" />
+        ixx="3.50509909260937E-05"
+        ixy="-8.64017578840017E-11"
+        ixz="-1.05221381680785E-07"
+        iyy="3.5311813886734E-05"
+        iyz="1.35770953614644E-11"
+        izz="4.34973430530754E-05" />
     </inertial>
     <visual>
       <origin
@@ -237,12 +253,12 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://robot_bringup/meshes/lidar_front_left.STL" />
+          filename="package://URDF_RobotDiploma/meshes/lidar_front_left.STL" />
       </geometry>
       <material
         name="">
         <color
-          rgba="0.298039215686275 0.298039215686275 0.298039215686275 1" />
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
       </material>
     </visual>
     <collision>
@@ -251,38 +267,38 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://robot_bringup/meshes/lidar_front_left.STL" />
+          filename="package://URDF_RobotDiploma/meshes/lidar_front_left.STL" />
       </geometry>
     </collision>
   </link>
   <joint
     name="lidar2"
-    type="continuous">
+    type="fixed">
     <origin
-      xyz="0.136139650045006 0.0861403499549938 -0.0264"
+      xyz="0.1439 0.1185 0.023292"
       rpy="0 0 0" />
     <parent
       link="base_link" />
     <child
       link="lidar_front_left" />
     <axis
-      xyz="0 0 1" />
+      xyz="0 0 0" />
   </joint>
   <link
     name="lidar_back_left">
     <inertial>
       <origin
-        xyz="-0.00516047917148299 -0.00198209986151632 0.0106736091298476"
+        xyz="7.7484E-05 -4.3788E-08 -0.0049305"
         rpy="0 0 0" />
       <mass
-        value="0.0260070250802488" />
+        value="0.10251" />
       <inertia
-        ixx="8.0045605976911E-06"
-        ixy="7.04202570872825E-07"
-        ixz="1.46734051492744E-07"
-        iyy="6.3734694098881E-06"
-        iyz="5.42139113549989E-08"
-        izz="1.3387646137251E-05" />
+        ixx="3.5051E-05"
+        ixy="-8.9754E-11"
+        ixz="1.0522E-07"
+        iyy="3.5312E-05"
+        iyz="-1.224E-11"
+        izz="4.3497E-05" />
     </inertial>
     <visual>
       <origin
@@ -290,12 +306,12 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://robot_bringup/meshes/lidar_back_left.STL" />
+          filename="package://URDF_RobotDiploma/meshes/lidar_back_left.STL" />
       </geometry>
       <material
         name="">
         <color
-          rgba="0.298039215686275 0.298039215686275 0.298039215686275 1" />
+          rgba="0.79216 0.81961 0.93333 1" />
       </material>
     </visual>
     <collision>
@@ -304,15 +320,15 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://robot_bringup/meshes/lidar_back_left.STL" />
+          filename="package://URDF_RobotDiploma/meshes/lidar_back_left.STL" />
       </geometry>
     </collision>
   </link>
   <joint
     name="lidar3"
-    type="continuous">
+    type="fixed">
     <origin
-      xyz="-0.136140349954999 0.0861396500450031 -0.0264"
+      xyz="-0.143102172264863 0.1185 0.0232921469155075"
       rpy="0 0 0" />
     <parent
       link="base_link" />
@@ -325,17 +341,17 @@
     name="lidar_back_right">
     <inertial>
       <origin
-        xyz="-0.00516050029324233 -0.00198210451795378 0.0106736094847588"
+        xyz="7.74816511960319E-05 -4.48238792749578E-08 -0.00493050937436246"
         rpy="0 0 0" />
       <mass
-        value="0.0260070238651023" />
+        value="0.102513123915553" />
       <inertia
-        ixx="8.00456434786668E-06"
-        ixy="7.04200334948601E-07"
-        ixz="1.46734471680288E-07"
-        iyy="6.37346745596087E-06"
-        iyz="5.42141135714579E-08"
-        izz="1.33876476237687E-05" />
+        ixx="3.50509905015254E-05"
+        ixy="-8.61714782601071E-11"
+        ixz="1.05221803946414E-07"
+        iyy="3.5311813608589E-05"
+        iyz="-1.34392786961218E-11"
+        izz="4.34973426121678E-05" />
     </inertial>
     <visual>
       <origin
@@ -343,284 +359,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://robot_bringup/meshes/lidar_back_right.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="0.298039215686275 0.298039215686275 0.298039215686275 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://robot_bringup/meshes/lidar_back_right.STL" />
-      </geometry>
-    </collision>
-  </link>
-  <joint
-    name="lidar4"
-    type="continuous">
-    <origin
-      xyz="-0.13613965004501 -0.0861403499549971 -0.0264000000000001"
-      rpy="0 0 0" />
-    <parent
-      link="base_link" />
-    <child
-      link="lidar_back_right" />
-    <axis
-      xyz="0 0 1" />
-  </joint>
-  <link
-    name="front_caster">
-    <inertial>
-      <origin
-        xyz="-0.00293102814090718 0.000187635424663046 -0.00267382140032002"
-        rpy="0 0 0" />
-      <mass
-        value="0.0107307157974003" />
-      <inertia
-        ixx="8.30877827719511E-07"
-        ixy="-8.4950869009012E-09"
-        ixz="-1.52528140984461E-07"
-        iyy="6.98728108979994E-07"
-        iyz="9.76241891129006E-09"
-        izz="1.11769202362738E-06" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://robot_bringup/meshes/front_caster.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="1 0.949019607843137 0.909803921568627 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://robot_bringup/meshes/front_caster.STL" />
-      </geometry>
-    </collision>
-  </link>
-  <joint
-    name="frontcasterjoint"
-    type="continuous">
-    <origin
-      xyz="0.14 0 -0.0620000000000001"
-      rpy="0 0 0" />
-    <parent
-      link="base_link" />
-    <child
-      link="front_caster" />
-    <axis
-      xyz="0 0 -1" />
-    <limit
-      effort="10"
-      velocity="10" />
-  </joint>
-  <link
-    name="front_caster_wheel">
-    <inertial>
-      <origin
-        xyz="-0.000585280879782935 2.22044604925031E-16 0.00914090716608351"
-        rpy="0 0 0" />
-      <mass
-        value="0.00725733761200358" />
-      <inertia
-        ixx="2.68007644754707E-07"
-        ixy="-2.00364612489944E-23"
-        ixz="5.04628224001308E-09"
-        iyy="2.68330751909763E-07"
-        iyz="2.19363112172277E-23"
-        izz="1.89517998780135E-07" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://robot_bringup/meshes/front_caster_wheel.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="1 1 1 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://robot_bringup/meshes/front_caster_wheel.STL" />
-      </geometry>
-    </collision>
-  </link>
-  <joint
-    name="frontcasterwheeljoint"
-    type="continuous">
-    <origin
-      xyz="-0.0128973307994271 0.00984422969308141 -0.013"
-      rpy="1.5707963267949 0 0" />
-    <parent
-      link="front_caster" />
-    <child
-      link="front_caster_wheel" />
-    <axis
-      xyz="-0.063897905647706 0 0.997956440759734" />
-    <limit
-      effort="10"
-      velocity="10" />
-  </joint>
-  <link
-    name="back_caster">
-    <inertial>
-      <origin
-        xyz="-0.00611942331107951 0.000316287435765839 -0.00579240800974468"
-        rpy="0 0 0" />
-      <mass
-        value="0.0153736904053634" />
-      <inertia
-        ixx="9.87431414484365E-07"
-        ixy="-1.66277762220472E-08"
-        ixz="-1.52528140984491E-07"
-        iyy="7.28786213471285E-07"
-        iyz="9.76241891128318E-09"
-        izz="1.27476633634146E-06" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://robot_bringup/meshes/back_caster.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="1 0.949019607843137 0.909803921568627 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://robot_bringup/meshes/back_caster.STL" />
-      </geometry>
-    </collision>
-  </link>
-  <joint
-    name="backcasterjoint"
-    type="continuous">
-    <origin
-      xyz="-0.140000000000001 0 -0.0619999999999999"
-      rpy="0 0 0" />
-    <parent
-      link="base_link" />
-    <child
-      link="back_caster" />
-    <axis
-      xyz="0 0 -1" />
-    <limit
-      effort="10"
-      velocity="10" />
-  </joint>
-  <link
-    name="back_caster_wheel">
-    <inertial>
-      <origin
-        xyz="-0.000575081150829271 0 0.00898160796683767"
-        rpy="0 0 0" />
-      <mass
-        value="0.00261436300403997" />
-      <inertia
-        ixx="1.11454057989787E-07"
-        ixy="-1.44980488213741E-23"
-        ixz="-3.08640708114532E-09"
-        iyy="1.11256439195613E-07"
-        iyz="7.98472824418931E-24"
-        izz="1.59459894288764E-07" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://robot_bringup/meshes/back_caster_wheel.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="1 1 1 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://robot_bringup/meshes/back_caster_wheel.STL" />
-      </geometry>
-    </collision>
-  </link>
-  <joint
-    name="backcasterwheeljoint"
-    type="continuous">
-    <origin
-      xyz="-0.0128973307994271 0.00984422969308141 -0.013"
-      rpy="1.5707963267949 0 0" />
-    <parent
-      link="back_caster" />
-    <child
-      link="back_caster_wheel" />
-    <axis
-      xyz="-0.063897905647706 0 0.997956440759734" />
-    <limit
-      effort="10"
-      velocity="10" />
-  </joint>
-  <link
-    name="top_link">
-    <inertial>
-      <origin
-        xyz="0.0478272175499812 -3.03668918899547E-08 0.111396115655374"
-        rpy="0 0 0" />
-      <mass
-        value="4.55501076764544" />
-      <inertia
-        ixx="0.0812506528270066"
-        ixy="1.26648249599819E-09"
-        ixz="-0.0159688981308726"
-        iyy="0.077610812926865"
-        iyz="2.12730719393052E-08"
-        izz="0.0636029505276083" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://robot_bringup/meshes/top_link.STL" />
+          filename="package://URDF_RobotDiploma/meshes/lidar_back_right.STL" />
       </geometry>
       <material
         name="">
@@ -634,7 +373,284 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://robot_bringup/meshes/top_link.STL" />
+          filename="package://URDF_RobotDiploma/meshes/lidar_back_right.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="lidar4"
+    type="fixed">
+    <origin
+      xyz="-0.1431 -0.1185 0.023292"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="lidar_back_right" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+  <link
+    name="front_caster">
+    <inertial>
+      <origin
+        xyz="-0.0045617762596567 0.000353503122097587 -0.00441295970486399"
+        rpy="0 0 0" />
+      <mass
+        value="0.00259129992796221" />
+      <inertia
+        ixx="2.35188536783204E-07"
+        ixy="-8.1921873376741E-10"
+        ixz="-3.72180847716287E-08"
+        iyy="1.99405614935345E-07"
+        iyz="-1.3892909025978E-09"
+        izz="2.91060712312761E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://URDF_RobotDiploma/meshes/front_caster.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.745098039215686 0.737254901960784 0.729411764705882 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://URDF_RobotDiploma/meshes/front_caster.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="frontcasterjoint"
+    type="continuous">
+    <origin
+      xyz="0.128305917608629 3.08857392976591E-05 -0.024391789843072"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="front_caster" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      effort="10"
+      velocity="10" />
+  </joint>
+  <link
+    name="front_caster_wheel">
+    <inertial>
+      <origin
+        xyz="4.44089209850063E-16 1.11022302462516E-16 -0.0104000000000004"
+        rpy="0 0 0" />
+      <mass
+        value="0.00382605152202009" />
+      <inertia
+        ixx="2.05611663304469E-07"
+        ixy="-2.64439301940183E-25"
+        ixz="2.24565568668936E-13"
+        iyy="2.05611663304471E-07"
+        iyz="3.25482519974293E-23"
+        izz="3.26788977058395E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://URDF_RobotDiploma/meshes/front_caster_wheel.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.749019607843137 0.749019607843137 0.749019607843137 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://URDF_RobotDiploma/meshes/front_caster_wheel.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="frontcasterwheeljoint"
+    type="continuous">
+    <origin
+      xyz="-0.012 -0.0104 -0.017111"
+      rpy="1.5708 0 0" />
+    <parent
+      link="front_caster" />
+    <child
+      link="front_caster_wheel" />
+    <axis
+      xyz="0 0 -1" />
+    <limit
+      effort="10"
+      velocity="10" />
+  </joint>
+  <link
+    name="back_caster">
+    <inertial>
+      <origin
+        xyz="-0.00456177625965681 0.000353503122097587 -0.00441295970486411"
+        rpy="0 0 0" />
+      <mass
+        value="0.00259129992796193" />
+      <inertia
+        ixx="2.35188536783186E-07"
+        ixy="-8.19218733770854E-10"
+        ixz="-3.72180847716279E-08"
+        iyy="1.99405614935332E-07"
+        iyz="-1.38929090260133E-09"
+        izz="2.91060712312735E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://URDF_RobotDiploma/meshes/back_caster.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.745098039215686 0.737254901960784 0.729411764705882 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://URDF_RobotDiploma/meshes/back_caster.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="backcasterjoint"
+    type="continuous">
+    <origin
+      xyz="-0.12673 -0.0024611 -0.024392"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="back_caster" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      effort="10"
+      velocity="10" />
+  </joint>
+  <link
+    name="back_caster_wheel">
+    <inertial>
+      <origin
+        xyz="2.22044604925031E-16 0 -0.0103999999999997"
+        rpy="0 0 0" />
+      <mass
+        value="0.00382605152201998" />
+      <inertia
+        ixx="2.05611663304462E-07"
+        ixy="-2.64439302093272E-25"
+        ixz="2.24565572043494E-13"
+        iyy="2.05611663304462E-07"
+        iyz="-5.06379863955948E-23"
+        izz="3.26788977058375E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://URDF_RobotDiploma/meshes/back_caster_wheel.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.749019607843137 0.749019607843137 0.749019607843137 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://URDF_RobotDiploma/meshes/back_caster_wheel.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="backcasterwheeljoint"
+    type="continuous">
+    <origin
+      xyz="-0.012 -0.0104 -0.017111"
+      rpy="1.5708 0 0" />
+    <parent
+      link="back_caster" />
+    <child
+      link="back_caster_wheel" />
+    <axis
+      xyz="0 0 -1" />
+    <limit
+      effort="10"
+      velocity="10" />
+  </joint>
+  <link
+    name="top_link">
+    <inertial>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <mass
+        value="0" />
+      <inertia
+        ixx="0"
+        ixy="0"
+        ixz="0"
+        iyy="0"
+        iyz="0"
+        izz="0" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://URDF_RobotDiploma/meshes/top_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://URDF_RobotDiploma/meshes/top_link.STL" />
       </geometry>
     </collision>
   </link>
@@ -642,7 +658,7 @@
     name="toplinkjoint"
     type="fixed">
     <origin
-      xyz="-0.000243515949483131 0 0"
+      xyz="0.11794 0 0.065"
       rpy="0 0 0" />
     <parent
       link="base_link" />
@@ -652,20 +668,20 @@
       xyz="0 0 0" />
   </joint>
   <link
-    name="panel_link">
+    name="camera_link">
     <inertial>
       <origin
-        xyz="-0.00506217356830629 8.88178419700125E-16 -0.002116955987572"
+        xyz="0.0019986909434444 -0.0100379683786158 -0.0212268282854221"
         rpy="0 0 0" />
       <mass
-        value="0.621800341754816" />
+        value="0.0613007198991268" />
       <inertia
-        ixx="0.00645682996871177"
-        ixy="-5.45321357046846E-20"
-        ixz="-1.65086293311559E-07"
-        iyy="0.00367952307992802"
-        iyz="-3.89802346021206E-18"
-        izz="0.00278803146795643" />
+        ixx="4.12312527454039E-05"
+        ixy="-1.80187766109621E-08"
+        ixz="-3.26145146771865E-08"
+        iyy="3.37562697576285E-05"
+        iyz="1.77912092753186E-07"
+        izz="4.56203572708566E-05" />
     </inertial>
     <visual>
       <origin
@@ -673,7 +689,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://robot_bringup/meshes/panel_link.STL" />
+          filename="package://URDF_RobotDiploma/meshes/camera_link.STL" />
       </geometry>
       <material
         name="">
@@ -687,20 +703,20 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://robot_bringup/meshes/panel_link.STL" />
+          filename="package://URDF_RobotDiploma/meshes/camera_link.STL" />
       </geometry>
     </collision>
   </link>
   <joint
-    name="panellinkjoint"
+    name="camera_joint"
     type="fixed">
     <origin
-      xyz="0.175243515949483 0 0.145225075633242"
-      rpy="0 0 0" />
+      xyz="0.03246 -0.002 0.36"
+      rpy="1.5708 0 1.5708" />
     <parent
       link="top_link" />
     <child
-      link="panel_link" />
+      link="camera_link" />
     <axis
       xyz="0 0 0" />
   </joint>

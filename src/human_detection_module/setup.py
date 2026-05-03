@@ -24,7 +24,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'human_detection_node = human_detection_module.human_detection_node:main',
+            'yolo_human_tracker = human_detection_module.human_detection_node:main',
+            'follow_me_controller = human_detection_module.follow_me_controller:main',
         ],
     },
 )

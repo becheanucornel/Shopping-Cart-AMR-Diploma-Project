@@ -9,6 +9,35 @@ The robot's purpose in this scenario is to replace the conventional shopping car
 
 ## System Architecture
 
+## Mapping → Save Map → Navigate
+
+### 1) Run SLAM (mapping mode)
+
+```bash
+source install/setup.bash
+ros2 launch system_bringup robot_system.launch.py slam_mode:=mapping mode:=slam
+```
+
+### 2) Save the map
+
+This bringup starts `nav2_map_server/map_saver_server` in mapping mode.
+
+```bash
+source install/setup.bash
+ros2 service call /map_saver/save_map nav2_msgs/srv/SaveMap "{map_topic: /map, map_url: 'file:///home/apollo/MobileRobot/src/system_bringup/map/my_map.yaml', image_format: 'pgm', map_mode: 'trinary', free_thresh: 0.25, occupied_thresh: 0.65}"
+```
+
+This writes:
+- `/home/apollo/MobileRobot/src/system_bringup/map/my_map.yaml`
+- `/home/apollo/MobileRobot/src/system_bringup/map/my_map.pgm`
+
+### 3) Navigate using the saved map
+
+```bash
+source install/setup.bash
+ros2 launch system_bringup robot_system.launch.py slam_mode:=localization map_file:=/home/apollo/MobileRobot/src/system_bringup/map/my_map.yaml
+```
+
 ### Hardware:
 - NVIDIA Jetson Orin Nano
 - 2x 24VDC Motors with encoders 

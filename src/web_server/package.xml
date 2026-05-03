@@ -11,10 +11,13 @@
 
   <depend>rclcpp</depend>
   <depend>rclcpp_components</depend>
+  <depend>rclcpp_action</depend>
   <depend>geometry_msgs</depend>
+  <depend>nav2_msgs</depend>
   <depend>nav_msgs</depend>
   <depend>std_msgs</depend>
   <depend>ament_index_cpp</depend>
+  <depend>tf2_ros</depend>
 
   <build_depend>Boost</build_depend>
   <exec_depend>Boost</exec_depend>

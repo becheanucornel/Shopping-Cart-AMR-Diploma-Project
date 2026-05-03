@@ -3,12 +3,15 @@
 #include <vector>
 #include <algorithm>
 #include <map>
+#include <cstdlib>
+#include <chrono>
 
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
 #include "std_msgs/msg/string.hpp"
 #include "geometry_msgs/msg/twist.hpp"
-#include "mode_manager_interfaces/srv/set_mode.hpp"
+#include "geometry_msgs/msg/pose_stamped.hpp"
+#include "nav_msgs/msg/odometry.hpp"
 #include "nav2_msgs/action/navigate_to_pose.hpp"
 
 using std::placeholders::_1;
@@ -22,245 +25,195 @@ public:
 
     ModeManager() : Node("mode_manager")
     {
-        // Initialize modes
-        modes_ = {"IDLE", "MANUAL", "SLAM", "NAVIGATION", "FOLLOWING"};
+        // Declarare parametrii
+        this->declare_parameter<double>("nav_cruise_linear_scale", 1.0);
+        this->declare_parameter<double>("nav_cruise_angular_scale", 1.0);
+        this->declare_parameter<double>("nav_linear_scale", 1.0);
+        this->declare_parameter<double>("nav_angular_scale", 1.0);
+        this->declare_parameter<double>("nav_min_linear_x", 0.0);
+        this->declare_parameter<double>("nav_min_angular_z", 0.0);
+        this->declare_parameter<double>("nav_stuck_linear_x", 0.02);
+        this->declare_parameter<double>("nav_stuck_angular_z", 0.02);
+        this->declare_parameter<double>("cmd_vel_publish_rate_hz", 20.0);
+        this->declare_parameter<double>("cmd_vel_timeout_sec", 0.5);
+
+        // Citire parametrii
+        nav_cruise_linear_scale_ = this->get_parameter("nav_cruise_linear_scale").as_double();
+        nav_cruise_angular_scale_ = this->get_parameter("nav_cruise_angular_scale").as_double();
+        nav_linear_scale_ = this->get_parameter("nav_linear_scale").as_double();
+        nav_angular_scale_ = this->get_parameter("nav_angular_scale").as_double();
+        nav_min_linear_x_ = this->get_parameter("nav_min_linear_x").as_double();
+        nav_min_angular_z_ = this->get_parameter("nav_min_angular_z").as_double();
+        nav_stuck_linear_x_ = this->get_parameter("nav_stuck_linear_x").as_double();
+        nav_stuck_angular_z_ = this->get_parameter("nav_stuck_angular_z").as_double();
+        cmd_vel_publish_rate_hz_ = this->get_parameter("cmd_vel_publish_rate_hz").as_double();
+        cmd_vel_timeout_sec_ = this->get_parameter("cmd_vel_timeout_sec").as_double();
+
+        modes_ = {"IDLE", "MANUAL", "MAPPING", "NAVIGATION", "FOLLOWING"};
         current_mode_ = "IDLE";
 
-        // Create publishers
         mode_publisher_ = this->create_publisher<std_msgs::msg::String>("/mode", 10);
         cmd_vel_publisher_ = this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
 
-        // Create service
-        mode_service_ = this->create_service<mode_manager_interfaces::srv::SetMode>(
-            "/set_mode",
-            std::bind(&ModeManager::handle_set_mode, this, _1, _2));
-
-        // Create subscriptions
+        // Subscriberi
         teleop_subscriber_ = this->create_subscription<geometry_msgs::msg::Twist>(
-            "/teleop_cmd", 10, std::bind(&ModeManager::teleop_callback, this, _1));
+            "/cmd_vel_teleop", 10, std::bind(&ModeManager::teleop_callback, this, _1));
+
+        nav_cmd_subscriber_ = this->create_subscription<geometry_msgs::msg::Twist>(
+            "/cmd_vel_nav2", 10, std::bind(&ModeManager::nav_cmd_callback, this, _1));
+
+        follow_cmd_subscriber_ = this->create_subscription<geometry_msgs::msg::Twist>(
+            "/cmd_vel_follow", 10, std::bind(&ModeManager::follow_cmd_callback, this, _1));
+
+        odom_subscriber_ = this->create_subscription<nav_msgs::msg::Odometry>(
+            "/odom", 10, std::bind(&ModeManager::odom_callback, this, _1));
 
         ui_mode_subscriber_abs_ = this->create_subscription<std_msgs::msg::String>(
             "/ui/mode/absolute", 10, std::bind(&ModeManager::ui_mode_callback, this, _1));
 
-        ui_mode_subscriber_rel_ = this->create_subscription<std_msgs::msg::String>(
-            "/ui/mode/relative", 10, std::bind(&ModeManager::ui_mode_callback, this, _1));
+        ui_goal_subscriber_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+            "/ui/nav_goal", 10, std::bind(&ModeManager::ui_goal_callback, this, _1));
 
-        nav_to_pose_client_ = rclcpp_action::create_client<NavigateToPose>(
-            this, "navigate_to_pose");
+        nav_to_pose_client_ = rclcpp_action::create_client<NavigateToPose>(this, "navigate_to_pose");
 
-        RCLCPP_INFO(this->get_logger(), "Mode Manager started, current mode: %s", current_mode_.c_str());
-        publish_current_mode();
+        const auto period = std::chrono::duration<double>(1.0 / std::max(1.0, cmd_vel_publish_rate_hz_));
+        cmd_vel_timer_ = this->create_wall_timer(
+            std::chrono::duration_cast<std::chrono::nanoseconds>(period),
+            std::bind(&ModeManager::cmd_vel_timer_tick, this));
+
+        R_INFO("Mode Manager pornit (Clean Version - Fără Watchdog RPi). Gata de lucru.");
     }
 
 private:
-    // Member Variables
+    void R_INFO(const std::string &msg) { RCLCPP_INFO(this->get_logger(), "%s", msg.c_str()); }
+    void R_ERROR(const std::string &msg) { RCLCPP_ERROR(this->get_logger(), "%s", msg.c_str()); }
+
+    // Membri
     std::string current_mode_;
     std::vector<std::string> modes_;
-    
-    // ROS Handles
+    double nav_cruise_linear_scale_, nav_cruise_angular_scale_, nav_linear_scale_, nav_angular_scale_;
+    double nav_min_linear_x_, nav_min_angular_z_, nav_stuck_linear_x_, nav_stuck_angular_z_;
+    double cmd_vel_publish_rate_hz_, cmd_vel_timeout_sec_;
+    double last_odom_linear_x_{0.0}, last_odom_angular_z_{0.0};
+    geometry_msgs::msg::Twist last_teleop_cmd_{}, last_nav_cmd_{}, last_follow_cmd_{};
+    rclcpp::Time last_teleop_cmd_time_{0, 0, RCL_ROS_TIME};
+    rclcpp::Time last_nav_cmd_time_{0, 0, RCL_ROS_TIME};
+    rclcpp::Time last_follow_cmd_time_{0, 0, RCL_ROS_TIME};
+
+    // Pub/Sub/Action
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr mode_publisher_;
     rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_publisher_;
-    rclcpp::Service<mode_manager_interfaces::srv::SetMode>::SharedPtr mode_service_;
-    rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr teleop_subscriber_;
+    rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr teleop_subscriber_, nav_cmd_subscriber_, follow_cmd_subscriber_;
+    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_subscriber_;
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr ui_mode_subscriber_abs_;
-    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr ui_mode_subscriber_rel_;
+    rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr ui_goal_subscriber_;
     rclcpp_action::Client<NavigateToPose>::SharedPtr nav_to_pose_client_;
-    
-    // Store the current goal handle to allow cancellation
     GoalHandleNavigateToPose::SharedPtr current_goal_handle_;
+    rclcpp::TimerBase::SharedPtr cmd_vel_timer_;
 
-    // ----------------------------------------------------------------------
     // Callbacks
-    // ----------------------------------------------------------------------
-
-    void teleop_callback(const geometry_msgs::msg::Twist::SharedPtr msg)
-    {
-        if (current_mode_ == "MANUAL") {
-            cmd_vel_publisher_->publish(*msg);
+    void cancel_active_navigation() {
+        if (current_goal_handle_) {
+            nav_to_pose_client_->async_cancel_goal(current_goal_handle_);
+            current_goal_handle_.reset();
         }
     }
 
-    void handle_set_mode(
-        const std::shared_ptr<mode_manager_interfaces::srv::SetMode::Request> request,
-        std::shared_ptr<mode_manager_interfaces::srv::SetMode::Response> response)
-    {
-        std::string requested_mode = request->mode;
-
-        // Check if mode is valid
-        auto it = std::find(modes_.begin(), modes_.end(), requested_mode);
-        if (it == modes_.end()) {
-            RCLCPP_WARN(this->get_logger(), "Invalid mode requested: %s", requested_mode.c_str());
-            response->success = false;
-            return;
-        }
-
-        // Stop current mode
-        if (current_mode_ == "MANUAL") {
-            geometry_msgs::msg::Twist stop_msg;
-            cmd_vel_publisher_->publish(stop_msg);
-        } else if (current_mode_ == "NAVIGATION" || current_mode_ == "FOLLOWING") {
-            if (current_goal_handle_) {
-                auto future_cancel = nav_to_pose_client_->async_cancel_goal(current_goal_handle_);
-                current_goal_handle_ = nullptr;
-            }
-        }
-
-        // Activate new mode
-        current_mode_ = requested_mode;
-
-        if (requested_mode == "IDLE") {
-            RCLCPP_INFO(this->get_logger(), "Switching to IDLE mode");
-            geometry_msgs::msg::Twist stop_msg;
-            cmd_vel_publisher_->publish(stop_msg);
-        } 
-        else if (requested_mode == "MANUAL") {
-            RCLCPP_INFO(this->get_logger(), "Switching to MANUAL mode - Ready for teleop commands");
-        } 
-        else if (requested_mode == "SLAM") {
-            RCLCPP_INFO(this->get_logger(), "Switching to SLAM mode - Mapping in progress");
-            RCLCPP_INFO(this->get_logger(), "SLAM Toolbox is active and building map. Drive the robot to explore.");
-        } 
-        else if (requested_mode == "NAVIGATION") {
-            RCLCPP_INFO(this->get_logger(), "Switching to NAVIGATION mode");
-        } 
-        else if (requested_mode == "FOLLOWING") {
-            RCLCPP_INFO(this->get_logger(), "Switching to FOLLOWING mode");
-        }
-
-        publish_current_mode();
-        response->success = true;
-    }
-
-    void ui_mode_callback(const std_msgs::msg::String::SharedPtr msg)
-    {
-        std::string raw = msg->data;
-        // Strip whitespace (simple version) and convert to upper case
-        raw.erase(remove(raw.begin(), raw.end(), ' '), raw.end()); 
-        std::transform(raw.begin(), raw.end(), raw.begin(), ::toupper);
-
-        std::map<std::string, std::string> alias_map = {
-            {"IDLE", "IDLE"}, {"MANUAL", "MANUAL"}, 
-            {"FOLLOW", "FOLLOWING"}, {"FOLLOWING", "FOLLOWING"},
-            {"NAV", "NAVIGATION"}, {"NAVIGATION", "NAVIGATION"}
-        };
-
-        if (alias_map.find(raw) == alias_map.end()) {
-            RCLCPP_WARN(this->get_logger(), "UI mode command invalid: %s", raw.c_str());
-            return;
-        }
-
-        std::string target = alias_map[raw];
-
-        // Reuse logic
-        if (current_mode_ == "NAVIGATION" && target != "NAVIGATION") {
-            cancel_navigation();
-        }
-
-        if (target != current_mode_) {
-            current_mode_ = target;
-            publish_current_mode();
-            RCLCPP_INFO(this->get_logger(), "UI requested mode change -> %s", current_mode_.c_str());
-        }
-    }
-
-    void publish_current_mode()
-    {
+    void publish_current_mode() {
         auto msg = std_msgs::msg::String();
         msg.data = current_mode_;
         mode_publisher_->publish(msg);
     }
 
-    // ----------------------------------------------------------------------
-    // Action Client Logic
-    // ----------------------------------------------------------------------
+    void teleop_callback(const geometry_msgs::msg::Twist::SharedPtr msg) {
+        last_teleop_cmd_ = *msg;
+        last_teleop_cmd_time_ = this->now();
+    }
 
-public: 
-    // Made public to be callable, though usually triggered by internal logic
-    void send_navigation_goal(const geometry_msgs::msg::Pose & pose)
+    void nav_cmd_callback(const geometry_msgs::msg::Twist::SharedPtr msg) {
+        last_nav_cmd_ = *msg;
+        last_nav_cmd_time_ = this->now();
+    }
+
+    void follow_cmd_callback(const geometry_msgs::msg::Twist::SharedPtr msg) {
+        last_follow_cmd_ = *msg;
+        last_follow_cmd_time_ = this->now();
+    }
+
+    void odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg) {
+        last_odom_linear_x_ = msg->twist.twist.linear.x;
+        last_odom_angular_z_ = msg->twist.twist.angular.z;
+    }
+
+    void ui_goal_callback(const geometry_msgs::msg::PoseStamped::SharedPtr msg) {
+        R_INFO("Nav goal primit în Mode Manager.");
+    }
+
+    void ui_mode_callback(const std_msgs::msg::String::SharedPtr msg)
     {
-        if (current_mode_ != "NAVIGATION") {
-            RCLCPP_WARN(this->get_logger(), "Cannot send navigation goal, not in NAVIGATION mode");
-            return;
+        std::string target = msg->data;
+        R_INFO("COMANDA PRIMITA: " + target + " (Stare actuala: " + current_mode_ + ")");
+
+        // Iesirea din MAPPING: Oprim SLAM, logam noua harta, repornim AMCL
+        if (current_mode_ == "MAPPING" && target != "MAPPING") {
+            R_INFO("Iesire din modul MAPPING. Salvez harta si opresc SLAM...");
+            
+            // 1. Salvăm harta
+            std::system("ros2 run nav2_map_server map_saver_cli -f /home/apollo/MobileRobot/src/system_bringup/map/map --ros-args -p save_map_timeout:=10.0");
+            
+            // 2. Oprim curat SLAM
+            std::system("pkill -2 -f slam_toolbox");
+            std::system("pkill -2 -f async_slam_toolbox_node");
+            std::system("sleep 2");
+
+            // 3. Reactivăm localizarea (AMCL și Map Server) folosind Lifecycle Manager
+            R_INFO("Re-activez sistemul de localizare AMCL...");
+            std::system("ros2 lifecycle set /map_server activate &");
+            std::system("ros2 lifecycle set /amcl activate &");
+
+            // 4. Încărcăm noua hartă direct în map_server
+            std::string load_cmd = "ros2 service call /map_server/load_map nav2_msgs/srv/LoadMap \"{map_url: '/home/apollo/MobileRobot/src/system_bringup/map/map.yaml'}\" &";
+            std::system(load_cmd.c_str());
         }
 
-        if (!nav_to_pose_client_->wait_for_action_server(std::chrono::seconds(2))) {
-            RCLCPP_ERROR(this->get_logger(), "Action server not available after waiting");
-            return;
+        if (target != current_mode_) {
+            if (current_mode_ == "NAVIGATION") cancel_active_navigation();
+            current_mode_ = target;
+            publish_current_mode();
+
+            // Intrarea in MAPPING: Adormim AMCL si Map Server ca sa lasam SLAM sa controleze TF-ul
+            if (target == "MAPPING") {
+                R_INFO("Dezactivez AMCL temporar si pornesc SLAM...");
+                std::system("ros2 lifecycle set /amcl deactivate");
+                std::system("ros2 lifecycle set /map_server deactivate");
+                std::system("sleep 1");
+                
+                std::system("ros2 launch slam_toolbox online_async_launch.py use_sim_time:=true &");
+            }
+            cmd_vel_publisher_->publish(geometry_msgs::msg::Twist());
+        } else {
+            publish_current_mode();
         }
+    }
 
-        auto goal_msg = NavigateToPose::Goal();
-        goal_msg.pose.pose = pose; 
-        // Note: NavigateToPose.Goal expects a PoseStamped usually, 
-        // but depending on nav2 version it might vary. 
-        // Assuming goal_msg.pose is geometry_msgs/PoseStamped:
-        goal_msg.pose.header.frame_id = "map";
-        goal_msg.pose.header.stamp = this->now();
+    void cmd_vel_timer_tick() {
+        auto now = this->now();
+        auto timeout = rclcpp::Duration::from_seconds(cmd_vel_timeout_sec_);
+        geometry_msgs::msg::Twist out;
 
-        auto send_goal_options = rclcpp_action::Client<NavigateToPose>::SendGoalOptions();
+        if (current_mode_ == "MANUAL" || current_mode_ == "MAPPING") {
+            if ((now - last_teleop_cmd_time_) < timeout) out = last_teleop_cmd_;
+        } else if (current_mode_ == "NAVIGATION") {
+            if ((now - last_nav_cmd_time_) < timeout) out = last_nav_cmd_;
+        } else if (current_mode_ == "FOLLOWING") {
+            if ((now - last_follow_cmd_time_) < timeout) out = last_follow_cmd_;
+        }
         
-        send_goal_options.goal_response_callback =
-            std::bind(&ModeManager::goal_response_callback, this, _1);
-            
-        send_goal_options.result_callback =
-            std::bind(&ModeManager::get_result_callback, this, _1);
-
-        nav_to_pose_client_->async_send_goal(goal_msg, send_goal_options);
-    }
-
-private:
-    void goal_response_callback(const GoalHandleNavigateToPose::SharedPtr & goal_handle)
-    {
-        if (!goal_handle) {
-            RCLCPP_INFO(this->get_logger(), "Goal rejected :(");
-            return;
-        }
-        RCLCPP_INFO(this->get_logger(), "Goal accepted :)");
-        current_goal_handle_ = goal_handle;
-    }
-
-    void get_result_callback(const GoalHandleNavigateToPose::WrappedResult & result)
-    {
-        switch (result.code) {
-            case rclcpp_action::ResultCode::SUCCEEDED:
-                RCLCPP_INFO(this->get_logger(), "Result: Succeeded");
-                break;
-            case rclcpp_action::ResultCode::ABORTED:
-                RCLCPP_INFO(this->get_logger(), "Result: Aborted");
-                break;
-            case rclcpp_action::ResultCode::CANCELED:
-                RCLCPP_INFO(this->get_logger(), "Result: Canceled");
-                break;
-            default:
-                RCLCPP_INFO(this->get_logger(), "Result: Unknown code");
-                break;
-        }
-        // Optionally switch back to IDLE
-        // current_mode_ = "IDLE";
-        
-        // Reset handle
-        current_goal_handle_.reset();
-    }
-
-    void cancel_navigation()
-    {
-        if (current_goal_handle_) {
-            // Check if active not directly available in all ros2 versions on pointer, 
-            // but non-null implies we tracked it.
-            RCLCPP_INFO(this->get_logger(), "Canceling current navigation goal");
-            
-            auto future_cancel = nav_to_pose_client_->async_cancel_goal(current_goal_handle_);
-            
-            // In C++, we usually define the callback via lambda or bind for the future
-            // However, async_cancel_goal returns a future, processing it requires spinning 
-            // or attaching a continuation if using advanced executors. 
-            // For simplicity in standard node spin, we rely on the Action Server 
-            // triggering the result_callback with status CANCELED.
-        }
+        cmd_vel_publisher_->publish(out);
     }
 };
 
-int main(int argc, char * argv[])
-{
+int main(int argc, char * argv[]) {
     rclcpp::init(argc, argv);
     rclcpp::spin(std::make_shared<ModeManager>());
     rclcpp::shutdown();

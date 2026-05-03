@@ -1,505 +1,462 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Robot Control Interface</title>
-<script src="https://cdn.jsdelivr.net/npm/roslib@1/build/roslib.min.js"></script>
-<style>
-/* --- ORIGINAL DARK/GREEN UI STYLE --- */
-body {
-  margin: 0;
-  padding: 20px;
-  font-family: Arial, sans-serif;
-  background: #2e2e32;
-  background: radial-gradient(circle at top left, #3a3a3f, #232324 70%);
-  color: #e5e9e5;
-}
-.container { max-width: 1200px; margin: 0 auto; }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Robot Control Interface - PRO MAX</title>
 
-/* Status Header */
-.header-status {
-  text-align: center;
-  margin: 20px 0;
-  padding: 15px;
-  background: #2a2a2a;
-  border-radius: 5px;
-  border: 1px solid #333;
-}
-.connection-indicator { font-weight: bold; padding: 5px 10px; border-radius: 4px; }
-.connected { color: #4CAF50; background: rgba(76, 175, 80, 0.1); }
-.disconnected { color: #f44336; background: rgba(244, 67, 54, 0.1); }
+    <script src="https://cdn.jsdelivr.net/npm/eventemitter2@6.4.9/lib/eventemitter2.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/easeljs@1.0.2/lib/easeljs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/roslib@1.3.0/build/roslib.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ros2d@0.10.0/build/ros2d.min.js"></script>
 
-/* Layout */
-.grid {
-  display: grid;
-  grid-template-columns: 1fr 400px;
-  gap: 20px;
-  margin-bottom: 20px;
-}
-@media (max-width: 1000px) { .grid { grid-template-columns: 1fr; } }
+    <style>
+        body { margin: 0; padding: 20px; font-family: 'Segoe UI', sans-serif; background: radial-gradient(circle at top left, #2c2c30, #121212 80%); color: #e5e9e5; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        
+        /* Header & Connection Indicator */
+        .header-status { text-align: center; margin-bottom: 20px; padding: 15px; background: rgba(30, 30, 30, 0.9); border-radius: 10px; border: 1px solid #444; display: flex; justify-content: center; align-items: center; gap: 20px; transition: all 0.3s ease;}
+        .connection-indicator { font-weight: bold; padding: 6px 16px; border-radius: 20px; font-size: 0.9em; display: flex; align-items: center; gap: 8px; letter-spacing: 1px; transition: all 0.3s ease;}
+        .status-led { width: 10px; height: 10px; border-radius: 50%; display: inline-block; transition: all 0.3s ease; }
+        
+        .connected { color: #4CAF50; background: rgba(76, 175, 80, 0.1); border: 1px solid rgba(76, 175, 80, 0.3); }
+        .connected .status-led { background: #4CAF50; box-shadow: 0 0 10px #4CAF50; }
+        
+        .disconnected { color: #f44336; background: rgba(244, 67, 54, 0.1); border: 1px solid rgba(244, 67, 54, 0.3); }
+        .disconnected .status-led { background: #f44336; box-shadow: 0 0 10px #f44336; }
+        
+        /* Layout */
+        .grid { display: grid; grid-template-columns: 1fr 400px; gap: 20px; }
+        .section { background: rgba(40, 42, 40, 0.8); padding: 25px; border-radius: 15px; border: 1px solid rgba(20, 156, 76, 0.2); box-shadow: 0 10px 30px rgba(0,0,0,0.5); transition: transform 0.3s ease, box-shadow 0.3s ease; }
+        .section:hover { box-shadow: 0 12px 35px rgba(0,0,0,0.6); border-color: rgba(20, 156, 76, 0.4); }
+        h2 { color: #149c4c; margin-top: 0; border-bottom: 2px solid rgba(20, 156, 76, 0.2); padding-bottom: 10px; text-transform: uppercase; font-size: 1.2em; letter-spacing: 1px; }
 
-.section {
-  background: rgba(50, 52, 50, 0.75);
-  padding: 25px;
-  border-radius: 15px;
-  border: 1px solid rgba(20, 156, 76, 0.25);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(8px);
-}
+        /* Map Container - Reduced height to 400px to avoid scrolling */
+        #map-container { width: 100%; height: 400px; margin: 0 auto; background: #111; border-radius: 10px; border: 1px solid #333; overflow: hidden; cursor: crosshair; position: relative; transition: all 0.3s ease; }
+        
+        /* Status Grid */
+        .status-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 15px; }
+        .status-item { background: #0b0b0b; padding: 12px; border-radius: 8px; border-left: 3px solid #149c4c; transition: background 0.3s ease; }
+        .status-item:hover { background: #1a1a1a; }
+        .status-label { color: #888; font-size: 0.7em; text-transform: uppercase; letter-spacing: 0.5px; }
+        .status-value { color: #149c4c; font-size: 1.1em; font-weight: bold; font-family: 'Consolas', monospace; margin-top: 4px; }
 
-h2 {
-  color: #149c4c;
-  margin-bottom: 20px;
-  font-size: 1.5em;
-  border-bottom: 2px solid rgba(20, 156, 76, 0.35);
-  padding-bottom: 10px;
-}
-
-/* Visualization */
-#robotCanvas {
-  width: 100%;
-  height: 500px;
-  background: #fff;
-  border: 2px solid rgba(20, 156, 76, 0.35);
-  border-radius: 10px;
-}
-
-/* Stats */
-.status-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 15px;
-  margin-top: 20px;
-}
-.status-item {
-  background: rgba(0, 0, 0, 0.35);
-  padding: 12px;
-  border-radius: 8px;
-  border-left: 4px solid #149c4c;
-}
-.status-label { color: #888; font-size: 0.8em; text-transform: uppercase; margin-bottom: 5px; }
-.status-value { color: #149c4c; font-size: 1.2em; font-weight: bold; font-family: 'Courier New', monospace; }
-
-/* Buttons */
-.mode-buttons {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-  margin-bottom: 20px;
-}
-button {
-  background: linear-gradient(145deg, #414741, #2e332e);
-  color: #e0e0e0;
-  border: 2px solid rgba(20, 156, 76, 0.35);
-  padding: 12px 20px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 1em;
-  font-weight: 600;
-  transition: all 0.3s ease;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-button:hover {
-  background: linear-gradient(145deg, #4d554d, #383e38);
-  border-color: #149c4c;
-  box-shadow: 0 0 15px rgba(20, 156, 76, 0.4);
-  transform: translateY(-2px);
-}
-button:active { transform: translateY(0); }
-
-/* Active State */
-button.active {
-  background: linear-gradient(145deg, #149c4c, #0d6f35);
-  color: #fff;
-  border-color: #21d368;
-  box-shadow: 0 0 25px rgba(20, 156, 76, 0.55);
-}
-
-/* Manual Drive Controls */
-.drive-controls {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  max-width: 250px;
-  margin: 20px auto;
-}
-.drive-controls button {
-  padding: 15px;
-  font-size: 1.5em;
-  aspect-ratio: 1;
-  display: flex; align-items: center; justify-content: center;
-}
-.stop-btn {
-  background: linear-gradient(145deg, #ff4444, #cc0000) !important;
-  border-color: #ff6666 !important;
-}
-.stop-btn:hover {
-  background: linear-gradient(145deg, #ff6666, #dd2222) !important;
-  box-shadow: 0 0 15px rgba(255, 68, 68, 0.6) !important;
-}
-
-/* Helper to hide sections */
-.hidden { display: none; }
-
-/* Nav Inputs */
-.nav-inputs { display: grid; gap: 15px; margin-bottom: 20px; }
-.input-group { display: flex; flex-direction: column; }
-.input-group label { color: #149c4c; font-weight: 600; margin-bottom: 8px; font-size: 0.9em; text-transform: uppercase; }
-input[type=number] {
-  background: rgba(40, 42, 40, 0.85);
-  color: #149c4c;
-  border: 2px solid rgba(20, 156, 76, 0.35);
-  padding: 10px;
-  border-radius: 8px;
-  font-size: 1.1em;
-  font-weight: bold;
-}
-input:focus { outline: none; border-color: #149c4c; box-shadow: 0 0 15px rgba(20, 156, 76, 0.35); }
-.nav-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-</style>
+        /* Buttons & Controls */
+        .mode-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+        button { background: #2a2a2a; color: #e5e9e5; border: 1px solid #555; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: bold; transition: all 0.2s ease; text-transform: uppercase; font-size: 0.85em; letter-spacing: 0.5px; }
+        button:hover:not(:disabled) { background: #3a3a3a; border-color: #149c4c; transform: translateY(-1px); }
+        button:active:not(:disabled) { transform: translateY(1px); }
+        button.active { background: #149c4c; color: #fff; border-color: #21d368; box-shadow: 0 0 15px rgba(20, 156, 76, 0.3); }
+        
+        /* Interlock Disabled State */
+        button:disabled { opacity: 0.4; cursor: not-allowed; border-color: #222; background: #1a1a1a; color: #555; box-shadow: none; transform: none; }
+        
+        /* Teleop Controls */
+        .drive-controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 200px; margin: 20px auto; }
+        .drive-controls button { aspect-ratio: 1; font-size: 1.2em; padding: 0; display: flex; justify-content: center; align-items: center; }
+        .stop-btn { background: #8b0000 !important; border-color: #ff4444 !important; color: white; }
+        .stop-btn:hover:not(:disabled) { background: #cc0000 !important; box-shadow: 0 0 12px rgba(255, 68, 68, 0.4); }
+        
+        input { background: #0b0b0b; color: #149c4c; border: 1px solid #444; padding: 10px; border-radius: 6px; font-weight: bold; width: 100%; box-sizing: border-box; transition: border-color 0.3s ease; }
+        input:focus { outline: none; border-color: #149c4c; }
+        
+        /* SLAM Panel */
+        .slam-box { margin-top: 20px; padding: 15px; background: rgba(255, 165, 0, 0.05); border: 1px solid rgba(255, 165, 0, 0.3); border-radius: 10px; text-align: center; }
+        .btn-start-slam { background: #cc8400; color: #fff; border-color: orange; width: 100%; margin-top: 10px; }
+        .btn-start-slam:hover:not(:disabled) { background: #e69500; border-color: #ffb732; box-shadow: 0 0 15px rgba(255, 165, 0, 0.3); }
+        .btn-stop-slam { background: #149c4c; color: white; border-color: #21d368; width: 100%; margin-top: 10px; }
+        
+        /* Animations */
+        @keyframes fadeInSlide {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .anim-panel { animation: fadeInSlide 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+        .hidden { display: none !important; }
+        
+        /* RViz Legend */
+        .map-legend { position: absolute; bottom: 12px; left: 12px; background: rgba(15, 15, 15, 0.85); padding: 10px 12px; border-radius: 6px; font-size: 0.75em; border: 1px solid #333; pointer-events: none; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; }
+        .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+        .legend-item:last-child { margin-bottom: 0; }
+        .color-box { width: 12px; height: 12px; border-radius: 3px; }
+    </style>
 </head>
 <body>
 
 <div class="container">
-  
-  <div class="header-status">
-    <span class="connection-indicator disconnected" id="connIndicator">● DISCONNECTED</span>
-    <span style="color: #666; margin: 0 20px;">|</span>
-    <span style="color: #888;">Current Mode:</span>
-    <span style="color: #149c4c; font-weight: bold; margin-left: 10px;" id="currentMode">UNKNOWN</span>
-  </div>
-
-  <div class="grid">
-    <div class="section">
-      <h2>📊 Visualization</h2>
-      <canvas id="robotCanvas" width="800" height="600"></canvas>
-      
-      <div class="status-grid">
-        <div class="status-item">
-          <div class="status-label">Position X</div>
-          <div class="status-value" id="posX">0.00</div>
+    <div class="header-status">
+        <div id="connIndicator" class="connection-indicator disconnected">
+            <span class="status-led"></span>
+            <span id="connText">DISCONNECTED</span>
         </div>
-        <div class="status-item">
-          <div class="status-label">Position Y</div>
-          <div class="status-value" id="posY">0.00</div>
-        </div>
-        <div class="status-item">
-          <div class="status-label">Orientation</div>
-          <div class="status-value" id="posYaw">0.00°</div>
-        </div>
-        <div class="status-item">
-          <div class="status-label">Goal Status</div>
-          <div class="status-value" id="goalStatus">IDLE</div>
-        </div>
-      </div>
+        <div style="color: #888; font-size: 0.9em; letter-spacing: 1px;">SYSTEM MODE: <span id="currentMode" style="color:#149c4c; font-weight:bold; margin-left: 5px;">IDLE</span></div>
     </div>
 
-    <div class="section">
-      <h2>🎮 Mode Selection</h2>
-      <div class="mode-buttons">
-        <button class="mode-btn" onclick="setMode('IDLE')">Idle</button>
-        <button class="mode-btn" onclick="setMode('MANUAL')">Manual</button>
-        <button class="mode-btn" onclick="setMode('FOLLOWING')">Follow</button>
-        <button class="mode-btn" onclick="setMode('NAVIGATION')">Navigate</button>
-      </div>
+    <div class="grid">
+        <div class="section">
+            <h2>Environment Map</h2>
+            <div id="map-container">
+                <div class="map-legend">
+                    <div class="legend-item"><div class="color-box" style="background: #ff3333;"></div> Robot Position</div>
+                    <div class="legend-item"><div class="color-box" style="background: #00ff00;"></div> Laser Scan</div>
+                </div>
+            </div>
+            <div class="status-grid">
+                <div class="status-item"><div class="status-label">X Axis (m)</div><div class="status-value" id="posX">0.00</div></div>
+                <div class="status-item"><div class="status-label">Y Axis (m)</div><div class="status-value" id="posY">0.00</div></div>
+                <div class="status-item"><div class="status-label">Heading</div><div class="status-value" id="posYaw">0.0°</div></div>
+                <div class="status-item"><div class="status-label">Nav2 State</div><div class="status-value" id="goalStatus">IDLE</div></div>
+            </div>
+        </div>
 
-      <div id="manualSection" class="hidden">
-        <h2>🕹️ Manual Drive</h2>
-        <div class="drive-controls">
-          <div></div>
-          <button onclick="drive(1.5, 0)">▲</button>
-          <div></div>
-          <button onclick="drive(0, 1.0)">⟲</button>
-          <button class="stop-btn" onclick="drive(0, 0)">■</button>
-          <button onclick="drive(0, -1.0)">⟳</button>
-          <div></div>
-          <button onclick="drive(-1.5, 0)">▼</button>
-          <div></div>
-        </div>
-      </div>
+        <div class="section">
+            <h2>Control Panel</h2>
+            <div class="mode-buttons">
+                <button class="mode-btn active" id="btn-idle" onclick="setMode('IDLE')">Idle</button>
+                <button class="mode-btn" id="btn-manual" onclick="setMode('MANUAL')">Manual</button>
+                <button class="mode-btn" id="btn-navigate" onclick="setMode('NAVIGATION')">Navigate</button>
+                <button class="mode-btn" id="btn-following" onclick="setMode('FOLLOWING')">Follow Me</button>
+            </div>
 
-      <div id="navSection" class="hidden">
-        <h2>🎯 Navigation Goal</h2>
-        <div class="nav-inputs">
-          <div class="input-group">
-            <label>X Position</label>
-            <input type="number" id="goalX" value="2.0" step="0.1">
-          </div>
-          <div class="input-group">
-            <label>Y Position</label>
-            <input type="number" id="goalY" value="0.0" step="0.1">
-          </div>
-          <div class="input-group">
-            <label>Yaw (deg)</label>
-            <input type="number" id="goalYaw" value="0" step="5">
-          </div>
+            <div id="manualSection" class="hidden">
+                <div class="drive-controls anim-panel">
+                    <div></div><button onmousedown="startDrive(10, 0)" onmouseup="stopDrive()" onmouseleave="stopDrive()">W</button><div></div>
+                    <button onmousedown="startDrive(0, 10.0)" onmouseup="stopDrive()" onmouseleave="stopDrive()">A</button>
+                    <button class="stop-btn" onclick="stopDrive()">STOP</button>
+                    <button onmousedown="startDrive(0, -10.0)" onmouseup="stopDrive()" onmouseleave="stopDrive()">D</button>
+                    <div></div><button onmousedown="startDrive(-10, 0)" onmouseup="stopDrive()" onmouseleave="stopDrive()">S</button><div></div>
+                </div>
+                
+                <div class="slam-box anim-panel">
+                    <p id="slamText" style="color:#e69500; margin: 0 0 12px 0; font-weight: bold; font-size: 0.85em; text-transform: uppercase; letter-spacing: 1px;">Mapping Control</p>
+                    <button id="btnStartSlam" class="btn-start-slam" onclick="setMode('MAPPING')">Start Mapping</button>
+                    <button id="btnStopSlam" class="btn-stop-slam hidden" onclick="setMode('IDLE')">Finish & Save</button>
+                </div>
+            </div>
+
+            <div id="navSection" class="hidden">
+                <div class="anim-panel" style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #333;">
+                    <p style="font-size: 0.75em; color: #888; margin: 0 0 12px 0; text-transform: uppercase; letter-spacing: 0.5px;">Click map to set goal or enter coordinates</p>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                        <input type="number" id="goalX" placeholder="Target X" step="0.1">
+                        <input type="number" id="goalY" placeholder="Target Y" step="0.1">
+                    </div>
+                </div>
+                <div class="anim-panel" style="display: grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                    <button onclick="sendGoal()" style="background:#149c4c; border-color:#21d368;">Dispatch</button>
+                    <button onclick="cancelGoal()" style="background:#555; border-color:#777;">Abort</button>
+                </div>
+            </div>
+
+            <div id="followSection" class="hidden">
+                <div class="anim-panel" style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #333;">
+                    <p style="font-size: 0.75em; color: #888; margin: 0 0 8px 0; text-transform: uppercase; letter-spacing: 0.5px;">Select Tracking Target</p>
+                    
+                    <!-- Dropdown List pentru Selectia Tintei -->
+                    <select id="targetSelect" style="background: #0b0b0b; color: #149c4c; border: 1px solid #444; padding: 10px; border-radius: 6px; font-weight: bold; width: 100%; box-sizing: border-box; margin-bottom: 15px; cursor: pointer; outline: none;">
+                        <option value="human">Human (Person)</option>
+                        <option value="ball">Sports Ball</option>
+                    </select>
+
+                    <!-- Containerul Video (Aspect ratio 4:3) -->
+                    <div id="video-container" style="width: 100%; aspect-ratio: 4/3; background: #000; border: 1px solid #444; border-radius: 6px; position: relative; overflow: hidden; display: flex; flex-direction: column;">
+                        <!-- Partea de sus a camerei (cum e in poza ta) -->
+                        <div style="flex: 1; background: #000; position: relative;">
+                            <span style="color: #0000ff; font-family: monospace; font-size: 1.2em; font-weight: bold; position: absolute; top: 15px; left: 15px;">Waiting for command...</span>
+                        </div>
+                        <!-- Partea de jos a camerei (gradientul gri din poza ta) -->
+                        <div style="flex: 1; background: linear-gradient(to bottom, #cccccc, #eeeeee);"></div>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="nav-buttons">
-          <button onclick="sendGoal()" style="background: linear-gradient(145deg, #00cc44, #009933); border-color: #00ff66;">🚀 Send</button>
-          <button onclick="cancelGoal()" style="background: linear-gradient(145deg, #ff8800, #cc6600); border-color: #ffaa00;">⛔ Cancel</button>
-        </div>
-      </div>
     </div>
-  </div>
 </div>
 
 <script>
-// --- ROBUST JAVASCRIPT LOGIC ---
-window.ros = null;
-window.teleopCmd = null;
-window.uiModeCmd = null;
-window.navActionClient = null;
-
-document.addEventListener('DOMContentLoaded', function() {
-  
-  if (typeof ROSLIB === 'undefined') {
-    document.getElementById('connIndicator').innerHTML = '⚠ ERROR: ROSLIB MISSING';
-    return;
-  }
-
-  // 1. Connection
-  window.ros = new ROSLIB.Ros({ url: 'ws://localhost:9090' });
-
-  window.ros.on('connection', function() {
-    console.log('[ROS] Connected');
-    document.getElementById('connIndicator').textContent = '● CONNECTED';
-    document.getElementById('connIndicator').className = 'connection-indicator connected';
-  });
-
-  window.ros.on('error', function(err) {
-    console.error('[ROS] Error', err);
-    document.getElementById('connIndicator').textContent = '● ERROR';
-    document.getElementById('connIndicator').className = 'connection-indicator disconnected';
-  });
-
-  window.ros.on('close', function() {
-    document.getElementById('connIndicator').textContent = '● DISCONNECTED';
-    document.getElementById('connIndicator').className = 'connection-indicator disconnected';
-  });
-
-  // 2. TOPICS - Adapted to your ModeManager C++ Code
-  
-  // Matches "ui_mode_subscriber_abs_" in C++
-  window.uiModeCmd = new ROSLIB.Topic({ 
-    ros: window.ros, 
-    name: '/ui/mode/absolute', 
-    messageType: 'std_msgs/msg/String' 
-  });
-
-  // Matches "teleop_subscriber_" in C++
-  window.teleopCmd = new ROSLIB.Topic({ 
-    ros: window.ros, 
-    name: '/teleop_cmd', 
-    messageType: 'geometry_msgs/msg/Twist' 
-  });
-  
-  // Action Client for Navigation (Standard Nav2)
-  window.navActionClient = new ROSLIB.ActionClient({
-    ros : window.ros,
-    serverName : '/navigate_to_pose',
-    actionName : 'nav2_msgs/action/NavigateToPose'
-  });
-
-  // Matches "mode_publisher_" in C++
-  var robotModeTopic = new ROSLIB.Topic({ ros: window.ros, name: '/mode', messageType: 'std_msgs/msg/String' });
-  
-  var odomTopic = new ROSLIB.Topic({ ros: window.ros, name: '/odom', messageType: 'nav_msgs/msg/Odometry' });
-  var scanTopic = new ROSLIB.Topic({ ros: window.ros, name: '/scan', messageType: 'sensor_msgs/msg/LaserScan' });
-
-  // 3. Variables
-  var robotPose = {x: 0, y: 0, yaw: 0};
-  var latestScan = null;
-  var hasPose = false;
-  var cachedGoal = {x: 2.0, y: 0.0};
-  var currentGoalHandle = null; // Store goal to cancel it later
-
-  // 4. UI Update Logic
-  function updateInterface(mode) {
-    if (!mode) return;
-    mode = mode.trim().toUpperCase();
+    // Config ROS
+    const ros = new ROSLIB.Ros({ url: 'ws://' + window.location.hostname + ':9090' });
     
-    document.getElementById('currentMode').textContent = mode;
+    // Publishers
+    const cmdVelPub = new ROSLIB.Topic({ ros: ros, name: '/cmd_vel', messageType: 'geometry_msgs/msg/Twist' });
+    const uiModePub = new ROSLIB.Topic({ ros: ros, name: '/ui/mode/absolute', messageType: 'std_msgs/msg/String' });
+    const uiGoalPub = new ROSLIB.Topic({ ros: ros, name: '/ui/nav_goal', messageType: 'geometry_msgs/msg/PoseStamped' });
+
+    let viewer, mapClient, robotMarker;
     
-    // Highlight Buttons
-    var buttons = document.querySelectorAll('.mode-btn');
-    buttons.forEach(function(btn){
-      btn.classList.remove('active');
-      var label = btn.textContent.trim().toUpperCase();
-      if(label === 'NAVIGATE') label = 'NAVIGATION';
-      if(label === 'FOLLOW') label = 'FOLLOWING';
-      if(label === mode) btn.classList.add('active');
+    // Variabile pentru Interactivitatea Hartii
+    let isTrackingRobot = true;
+    let interactionTimer = null;
+    const DEFAULT_ZOOM = 45; // Pixeli per metru (ajustează dacă vrei să fie mai aproape/departe)
+
+    ros.on('connection', () => {
+        document.getElementById('connIndicator').className = 'connection-indicator connected';
+        document.getElementById('connText').textContent = 'CONNECTED';
+        initMap();
     });
 
-    // Show/Hide Sections
-    var manualEl = document.getElementById('manualSection');
-    var navEl = document.getElementById('navSection');
-    
-    manualEl.style.display = 'none';
-    navEl.style.display = 'none';
+    ros.on('close', () => {
+        document.getElementById('connIndicator').className = 'connection-indicator disconnected';
+        document.getElementById('connText').textContent = 'DISCONNECTED';
+    });
 
-    if (mode === 'MANUAL') {
-      manualEl.style.display = 'block';
-    } else if (mode === 'NAVIGATION') {
-      navEl.style.display = 'block';
-    }
-  }
-
-  // Subscribe to Robot Mode
-  robotModeTopic.subscribe(function(msg) { updateInterface(msg.data); });
-  
-  setTimeout(function(){ 
-    if(document.getElementById('currentMode').textContent === 'UNKNOWN') updateInterface('IDLE'); 
-  }, 1000);
-
-
-  // 5. Visualization
-  var canvas = document.getElementById('robotCanvas');
-  var ctx = canvas.getContext('2d');
-  var scale = 80; 
-  var offX = canvas.width / 2; 
-  var offY = canvas.height / 2;
-
-  var bgCanvas = document.createElement('canvas');
-  bgCanvas.width = canvas.width; bgCanvas.height = canvas.height;
-  var bgCtx = bgCanvas.getContext('2d');
-  bgCtx.fillStyle = '#ffffff'; bgCtx.fillRect(0,0,800,600);
-  bgCtx.strokeStyle = '#e0e0e0'; bgCtx.lineWidth = 1;
-  for(var i=-15; i<=15; i++) {
-    bgCtx.beginPath(); bgCtx.moveTo(offX + i*scale, 0); bgCtx.lineTo(offX + i*scale, 600); bgCtx.stroke();
-    bgCtx.beginPath(); bgCtx.moveTo(0, offY + i*scale); bgCtx.lineTo(800, offY + i*scale); bgCtx.stroke();
-  }
-  bgCtx.strokeStyle = '#000'; bgCtx.lineWidth = 2;
-  bgCtx.beginPath(); bgCtx.moveTo(offX, 0); bgCtx.lineTo(offX, 600); bgCtx.stroke();
-  bgCtx.beginPath(); bgCtx.moveTo(0, offY); bgCtx.lineTo(800, offY); bgCtx.stroke();
-
-  odomTopic.subscribe(function(msg) {
-    var p = msg.pose.pose.position;
-    var q = msg.pose.pose.orientation;
-    var yaw = Math.atan2(2*(q.w*q.z + q.x*q.y), 1 - 2*(q.y*q.y + q.z*q.z));
-    robotPose = {x: p.x, y: p.y, yaw: yaw};
-    hasPose = true;
-    document.getElementById('posX').textContent = p.x.toFixed(2);
-    document.getElementById('posY').textContent = p.y.toFixed(2);
-    document.getElementById('posYaw').textContent = (yaw * 180 / Math.PI).toFixed(1) + '°';
-  });
-
-  scanTopic.subscribe(function(msg) { latestScan = msg; });
-
-  function draw() {
-    ctx.drawImage(bgCanvas, 0, 0);
-
-    if(document.getElementById('navSection').style.display === 'block') {
-      var gx = offX + cachedGoal.x*scale;
-      var gy = offY - cachedGoal.y*scale;
-      ctx.beginPath(); ctx.arc(gx, gy, 10, 0, 6.28); ctx.fillStyle = '#8000ff'; ctx.fill();
+    // Funcția care resetează timer-ul de interacțiune
+    function triggerMapInteraction() {
+        isTrackingRobot = false;
+        clearTimeout(interactionTimer);
+        
+        interactionTimer = setTimeout(() => {
+            isTrackingRobot = true; // Revenim la urmărirea robotului
+            // Resetăm și zoom-ul la valoarea de bază
+            viewer.scene.scaleX = DEFAULT_ZOOM;
+            viewer.scene.scaleY = DEFAULT_ZOOM;
+        }, 5000); // 5 secunde de inactivitate
     }
 
-    if(hasPose) {
-      var rx = offX + robotPose.x*scale;
-      var ry = offY - robotPose.y*scale;
-      if(latestScan) {
-        ctx.save(); ctx.translate(rx, ry); ctx.rotate(-robotPose.yaw);
-        ctx.strokeStyle = '#000'; ctx.lineWidth = 1;
-        var angle = latestScan.angle_min;
-        latestScan.ranges.forEach(function(r) {
-          if(r > latestScan.range_min && r < latestScan.range_max) {
-             ctx.beginPath(); ctx.moveTo(0,0);
-             ctx.lineTo(r*Math.cos(angle)*scale, -r*Math.sin(angle)*scale);
-             ctx.stroke();
-          }
-          angle += latestScan.angle_increment;
+    function initMap() {
+        if(viewer) return;
+
+        const mapContainer = document.getElementById('map-container');
+        viewer = new ROS2D.Viewer({
+            divID: 'map-container',
+            width: mapContainer.clientWidth,
+            height: 400,
+            background: '#111'
         });
-        ctx.restore();
-      }
-      ctx.save(); ctx.translate(rx, ry); ctx.rotate(-robotPose.yaw);
-      ctx.fillStyle = '#ff2222'; ctx.strokeStyle = '#660000'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(20,0); ctx.lineTo(-12,-10); ctx.lineTo(-12,10); ctx.closePath();
-      ctx.fill(); ctx.stroke();
-      ctx.restore();
+
+        mapClient = new ROS2D.OccupancyGridClient({
+            ros: ros,
+            rootObject: viewer.scene,
+            continuous: true,
+            topic: '/map'
+        });
+
+        mapClient.on('change', () => {
+            if (!viewer.scene.__initialized) {
+                viewer.scene.scaleX = DEFAULT_ZOOM;
+                viewer.scene.scaleY = DEFAULT_ZOOM;
+                viewer.scene.__initialized = true;
+            }
+
+            // Dacă suntem în MAPPING și SLAM-ul dă resize la hartă, 
+            // forțăm o re-centrare imediată folosind ultima poziție a robotului
+            if (document.getElementById('currentMode').innerText === 'MAPPING' && isTrackingRobot) {
+                const viewWidth = document.getElementById('map-container').clientWidth;
+                const viewHeight = 400;
+                const mapOffsetX = mapClient.currentGrid.pose.position.x;
+                const mapOffsetY = mapClient.currentGrid.pose.position.y;
+                
+                viewer.scene.x = (viewWidth / 2) - ((lastRobotPose.x - mapOffsetX) * viewer.scene.scaleX);
+                viewer.scene.y = (viewHeight / 2) - (-(lastRobotPose.y - mapOffsetY) * viewer.scene.scaleY);
+            }
+        });
+
+        // ----------------------------------------------------
+        // DESENARE ROBOT CUSTOM (pentru claritate maximă)
+        // ----------------------------------------------------
+        robotMarker = new createjs.Shape();
+        robotMarker.graphics.beginFill('#333333').drawRoundRect(-0.15, 0.18, 0.3, 0.1, 0.02); // Roata stanga
+        robotMarker.graphics.beginFill('#333333').drawRoundRect(-0.15, -0.28, 0.3, 0.1, 0.02); // Roata dreapta
+        robotMarker.graphics.setStrokeStyle(0.03).beginStroke('#ffffff').beginFill('#ff3333').drawCircle(0, 0, 0.22); // Corp
+        robotMarker.graphics.beginFill('#ffffff').moveTo(0.05, -0.15).lineTo(0.35, 0).lineTo(0.05, 0.15).closePath(); // Săgeata Față
+        viewer.scene.addChild(robotMarker);
+
+        // ----------------------------------------------------
+        // ACTUALIZARE ODOMETRIE & AUTO-TRACKING
+        // ----------------------------------------------------
+        const odomSub = new ROSLIB.Topic({ ros: ros, name: '/odom_nav2', messageType: 'nav_msgs/msg/Odometry' });
+        
+        // Adăugăm o variabilă care să rețină ultima poziție cunoscută
+        let lastRobotPose = { x: 0, y: 0, yaw: 0 };
+
+        odomSub.subscribe((msg) => {
+            const p = msg.pose.pose.position;
+            const q = msg.pose.pose.orientation;
+            
+            lastRobotPose.x = p.x;
+            lastRobotPose.y = p.y;
+            lastRobotPose.yaw = Math.atan2(2.0*(q.w*q.z + q.x*q.y), 1.0-2.0*(q.y*q.y + q.z*q.z));
+            
+            document.getElementById('posX').innerText = p.x.toFixed(2);
+            document.getElementById('posY').innerText = p.y.toFixed(2);
+            document.getElementById('posYaw').innerText = (lastRobotPose.yaw * 180 / Math.PI).toFixed(1) + '°';
+
+            // Actualizăm markerul (valabil pentru ambele moduri)
+            robotMarker.x = p.x;
+            robotMarker.y = -p.y; 
+            robotMarker.rotation = -lastRobotPose.yaw * (180 / Math.PI);
+
+            // AUTO-TRACKING LOGIC
+            if (isTrackingRobot) {
+                const currentMode = document.getElementById('currentMode').innerText;
+                const viewWidth = document.getElementById('map-container').clientWidth;
+                const viewHeight = 400;
+
+                if (currentMode === 'MAPPING') {
+                    // În modul MAPPING, SLAM-ul schimbă originea hărții constant. 
+                    // Trebuie să ținem cont de 'pose'-ul hărții trimis de server
+                    if(mapClient.currentGrid && mapClient.currentGrid.pose) {
+                         const mapOffsetX = mapClient.currentGrid.pose.position.x;
+                         const mapOffsetY = mapClient.currentGrid.pose.position.y;
+                         
+                         // Calcul mai complex pentru a menține robotul pe centru chiar și când harta se dilată
+                         viewer.scene.x = (viewWidth / 2) - ((p.x - mapOffsetX) * viewer.scene.scaleX);
+                         viewer.scene.y = (viewHeight / 2) - (-(p.y - mapOffsetY) * viewer.scene.scaleY);
+                    }
+                } else {
+                    // Modul NORMAL de navigare (Harta e fixă)
+                    viewer.scene.x = (viewWidth / 2) - (p.x * viewer.scene.scaleX);
+                    viewer.scene.y = (viewHeight / 2) - (-p.y * viewer.scene.scaleY);
+                }
+            }
+        });
+
+        // ----------------------------------------------------
+        // INTERACTIVITATE: DRAG / PAN / CLICK
+        // ----------------------------------------------------
+        let isDragging = false;
+        let lastPanX = 0, lastPanY = 0;
+        let mouseDownX = 0, mouseDownY = 0;
+
+        viewer.scene.addEventListener('stagemousedown', (event) => {
+            isDragging = true;
+            lastPanX = event.stageX;
+            lastPanY = event.stageY;
+            mouseDownX = event.stageX;
+            mouseDownY = event.stageY;
+            triggerMapInteraction(); // Utilizatorul a atins harta
+        });
+
+        viewer.scene.addEventListener('stagemousemove', (event) => {
+            if (isDragging) {
+                const dx = event.stageX - lastPanX;
+                const dy = event.stageY - lastPanY;
+                viewer.scene.x += dx;
+                viewer.scene.y += dy;
+                lastPanX = event.stageX;
+                lastPanY = event.stageY;
+                triggerMapInteraction(); // Ținem timer-ul treaz cât mută harta
+            }
+        });
+
+        viewer.scene.addEventListener('stagemouseup', (event) => {
+            isDragging = false;
+            // Distanța dintre locul unde a pus mouse-ul și unde l-a ridicat
+            const moveDist = Math.hypot(event.stageX - mouseDownX, event.stageY - mouseDownY);
+
+            // Dacă s-a mișcat mai puțin de 5 pixeli, a fost un CLICK, nu un DRAG
+            if (moveDist < 5) {
+                if (document.getElementById('currentMode').innerText === 'NAVIGATION') {
+                    const pos = viewer.scene.globalToRos(event.stageX, event.stageY);
+                    executeGoal(pos.x, pos.y, 0);
+                }
+            }
+        });
+
+        // ----------------------------------------------------
+        // INTERACTIVITATE: SCROLL TO ZOOM
+        // ----------------------------------------------------
+        mapContainer.addEventListener('wheel', (event) => {
+            event.preventDefault(); // Oprește scroll-ul paginii web
+            triggerMapInteraction(); 
+
+            const zoomFactor = event.deltaY > 0 ? 0.85 : 1.15;
+            const oldScale = viewer.scene.scaleX;
+            const newScale = oldScale * zoomFactor;
+
+            // Limite de zoom
+            if (newScale < 10 || newScale > 200) return;
+
+            // Logica matematică pentru a face zoom fix spre cursorul mouse-ului
+            const rect = mapContainer.getBoundingClientRect();
+            const stageX = event.clientX - rect.left;
+            const stageY = event.clientY - rect.top;
+
+            viewer.scene.x = stageX - (stageX - viewer.scene.x) * (newScale / oldScale);
+            viewer.scene.y = stageY - (stageY - viewer.scene.y) * (newScale / oldScale);
+            
+            viewer.scene.scaleX = newScale;
+            viewer.scene.scaleY = newScale;
+        });
     }
-    requestAnimationFrame(draw);
-  }
-  draw();
 
+    // --- Funcțiile UI / ROS Rămân Identice ---
 
-  // --- BUTTON HANDLERS ---
-  window.setMode = function(mode) {
-    var upper = mode.trim().toUpperCase();
-    console.log('[UI] Setting Mode:', upper);
-    
-    // 1. Force UI update immediately (Optimistic)
-    updateInterface(upper);
-    
-    // 2. Send Command to /ui/mode/absolute
-    if(window.uiModeCmd) {
-      window.uiModeCmd.publish(new ROSLIB.Message({ data: upper }));
-    }
-  };
-
-  window.drive = function(linear, angular) {
-    // Send to /teleop_cmd
-    if(window.teleopCmd) {
-      window.teleopCmd.publish(new ROSLIB.Message({
-        linear: {x: linear, y: 0, z: 0},
-        angular: {x: 0, y: 0, z: angular}
-      }));
-    }
-  };
-
-  window.sendGoal = function() {
-    var x = parseFloat(document.getElementById('goalX').value);
-    var y = parseFloat(document.getElementById('goalY').value);
-    var yaw = parseFloat(document.getElementById('goalYaw').value);
-    cachedGoal = {x: x, y: y};
-
-    if(document.getElementById('currentMode').textContent !== 'NAVIGATION') {
-       window.setMode('NAVIGATION');
-       setTimeout(window.sendGoal, 200);
-       return;
-    }
-
-    // Creating Action Goal
-    var goal = new ROSLIB.Goal({
-      actionClient : window.navActionClient,
-      goalMessage : {
-        pose : {
-          header : { frame_id : 'map' },
-          pose : {
-            position : {x : x, y : y, z : 0},
-            orientation : {z : Math.sin(yaw*Math.PI/360), w : Math.cos(yaw*Math.PI/360)}
-          }
+    function updateInterlocks(mode) {
+        const btns = {
+            idle: document.getElementById('btn-idle'),
+            manual: document.getElementById('btn-manual'),
+            navigate: document.getElementById('btn-navigate'),
+            following: document.getElementById('btn-following')
+        };
+        Object.values(btns).forEach(b => { if(b) b.disabled = false; });
+        if (mode === 'MAPPING') {
+            if(btns.navigate) btns.navigate.disabled = true;
+            if(btns.following) btns.following.disabled = true;
+        } else if (mode === 'NAVIGATION') {
+            if(btns.manual) btns.manual.disabled = true;
+            if(btns.following) btns.following.disabled = true;
+        } else if (mode === 'FOLLOWING') {
+            if(btns.manual) btns.manual.disabled = true;
+            if(btns.navigate) btns.navigate.disabled = true;
         }
-      }
-    });
-
-    goal.on('feedback', function(feedback) {
-      console.log('Feedback:', feedback);
-    });
-
-    goal.on('result', function(result) {
-      console.log('Result:', result);
-      document.getElementById('goalStatus').textContent = 'ARRIVED';
-      document.getElementById('goalStatus').style.color = '#4CAF50';
-    });
-
-    goal.send();
-    currentGoalHandle = goal; // Save for cancellation
-    
-    document.getElementById('goalStatus').textContent = 'SENT';
-    document.getElementById('goalStatus').style.color = '#ffaa00';
-  };
-
-  window.cancelGoal = function() {
-    if(currentGoalHandle) {
-       currentGoalHandle.cancel();
-       document.getElementById('goalStatus').textContent = 'CANCELLED';
-       document.getElementById('goalStatus').style.color = '#ff4444';
     }
-  };
-  
-});
+
+    function setMode(mode) {
+        // UI toggles with animation handling
+        const isManualOrMapping = (mode === 'MANUAL' || mode === 'MAPPING');
+        const isNavigating = (mode === 'NAVIGATION');
+        const isMapping = (mode === 'MAPPING');
+        const isFollowing = (mode === 'FOLLOWING'); // Am adăugat variabila nouă
+
+        document.getElementById('manualSection').classList.toggle('hidden', !isManualOrMapping);
+        document.getElementById('navSection').classList.toggle('hidden', !isNavigating);
+        document.getElementById('followSection').classList.toggle('hidden', !isFollowing); // Afișăm panoul YOLO
+        
+        document.getElementById('btnStartSlam').classList.toggle('hidden', isMapping);
+        document.getElementById('btnStopSlam').classList.toggle('hidden', !isMapping);
+        
+        const modeMsg = new ROSLIB.Message({ data: mode });
+        uiModePub.publish(modeMsg);
+    }
+
+    let driveInterval = null;
+    function startDrive(lin, ang) {
+        if (driveInterval) return;
+        const msg = new ROSLIB.Message({ linear: {x: lin, y:0, z:0}, angular: {x:0, y:0, z:ang} });
+        cmdVelPub.publish(msg);
+        driveInterval = setInterval(() => cmdVelPub.publish(msg), 100);
+    }
+
+    function stopDrive() {
+        clearInterval(driveInterval);
+        driveInterval = null;
+        cmdVelPub.publish({ linear: {x:0, y:0, z:0}, angular: {x:0, y:0, z:0} });
+    }
+
+    function sendGoal() {
+        const x = parseFloat(document.getElementById('goalX').value || 0);
+        const y = parseFloat(document.getElementById('goalY').value || 0);
+        executeGoal(x, y, 0);
+    }
+
+    function executeGoal(x, y, yaw) {
+        const goal = new ROSLIB.Message({
+            header: { frame_id: 'map', stamp: { sec: 0, nanosec: 0 } },
+            pose: {
+                position: { x: x, y: y, z: 0.0 },
+                orientation: { x: 0.0, y: 0.0, z: Math.sin(yaw/2), w: Math.cos(yaw/2) }
+            }
+        });
+        uiGoalPub.publish(goal);
+        document.getElementById('goalStatus').innerText = 'ACTIVE';
+        setMode('NAVIGATION');
+    }
+
+    function cancelGoal() {
+        setMode('IDLE');
+        document.getElementById('goalStatus').innerText = 'IDLE';
+    }
 </script>
 </body>
 </html>
