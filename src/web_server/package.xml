@@ -19,8 +19,8 @@
   <depend>ament_index_cpp</depend>
   <depend>tf2_ros</depend>
 
-  <build_depend>Boost</build_depend>
-  <exec_depend>Boost</exec_depend>
+  <build_depend>boost</build_depend>
+  <exec_depend>boost</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

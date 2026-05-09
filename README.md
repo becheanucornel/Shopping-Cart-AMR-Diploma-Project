@@ -1,5 +1,5 @@
 # Shopping Cart AMR - Diploma Project
-![ROS2 Jazzy](https://img.shields.io/badge/ROS2-Jazzy-green?style=flat-square&logo=ros)
+![ROS2 Humble](https://img.shields.io/badge/ROS2-Humble-green?style=flat-square&logo=ros)
 ![NVIDIA Isaac Sim](https://img.shields.io/badge/NVIDIA%20Isaac%20Sim-5.1.0-76B900?style=flat-square&logo=nvidia)
 ## [ONGOING DEV]
 
@@ -9,48 +9,18 @@ The robot's purpose in this scenario is to replace the conventional shopping car
 
 ## System Architecture
 
-## Mapping → Save Map → Navigate
-
-### 1) Run SLAM (mapping mode)
-
-```bash
-source install/setup.bash
-ros2 launch system_bringup robot_system.launch.py slam_mode:=mapping mode:=slam
-```
-
-### 2) Save the map
-
-This bringup starts `nav2_map_server/map_saver_server` in mapping mode.
-
-```bash
-source install/setup.bash
-ros2 service call /map_saver/save_map nav2_msgs/srv/SaveMap "{map_topic: /map, map_url: 'file:///home/apollo/MobileRobot/src/system_bringup/map/my_map.yaml', image_format: 'pgm', map_mode: 'trinary', free_thresh: 0.25, occupied_thresh: 0.65}"
-```
-
-This writes:
-- `/home/apollo/MobileRobot/src/system_bringup/map/my_map.yaml`
-- `/home/apollo/MobileRobot/src/system_bringup/map/my_map.pgm`
-
-### 3) Navigate using the saved map
-
-```bash
-source install/setup.bash
-ros2 launch system_bringup robot_system.launch.py slam_mode:=localization map_file:=/home/apollo/MobileRobot/src/system_bringup/map/my_map.yaml
-```
-
 ### Hardware:
-- NVIDIA Jetson Orin Nano
-- 2x 24VDC Motors with encoders 
+- NVIDIA Jetson Orin Nano Super
+- 2x 12V DC Motors with encoders 
 - 2x Motor Drivers
-- 4x LiDARs 
-- Raspberry Pi Camera Module
+- 4x SLAMTEC RPLIDAR C1 LiDARs 
+- Raspberry Pi Camera
 
 ### Software:
-- ROS2 Jazzy
-- Navigation2
-- SlamToolbox
-- YOLOv8
-- OpenCV
+- ROS2 Humble / Isaac ROS
+- ROS2 Nav2 Package
+- ROS2 slamtoolbox Package
+- ROS2 sllidar Package
 - Custom C++/Python packages
 
 ## Packages 
@@ -58,8 +28,9 @@ ros2 launch system_bringup robot_system.launch.py slam_mode:=localization map_fi
 The project makes use of both custom packages and community-based packages.
 
 ### Community-based:
-- Navigation2
+- Nav2
 - SlamToolbox
+- Sllidar_ROS2
 
 ### Custom packages:
 - **Camera C++ package** -> Publishes the camera stream to a topic.
@@ -67,6 +38,8 @@ The project makes use of both custom packages and community-based packages.
 - **Mode manager C++ package** -> Dynamically manages the robot's operation modes.
 - **Scan merger C++ package** -> Merges data from the 4 LiDARs.
 - **System launcher package** -> Launches all nodes based on specific conditions.
+- **Web Server package** -> Host a web page used to interact with the robot.
+- **Robot Driver** -> Controls the motors and gives feedback from the encoders.
 
 [*Other packages are still in development*]
 

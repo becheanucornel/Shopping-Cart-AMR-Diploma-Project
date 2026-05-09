@@ -2,175 +2,170 @@
 #include <memory>
 #include <vector>
 #include <string>
-#include <algorithm> // for std::min, std::max
-#include <cmath>     // for std::isnan
-#include <limits>    // for std::numeric_limits
+#include <algorithm>
+#include <cmath>
+#include <limits>
 
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"
+#include "geometry_msgs/msg/transform_stamped.hpp"
+
+// TF2 includes
+#include "tf2_ros/transform_listener.h"
+#include "tf2_ros/buffer.h"
+#include "tf2/LinearMath/Transform.h"
+#include "tf2/utils.h"
 
 using namespace std::chrono_literals;
 
 class ScanMerger : public rclcpp::Node {
 public:
     ScanMerger() : Node("scan_merger") {
-        // NOTE: The old implementation attempted to "merge" multiple 360deg scans by taking
-        // the minimum range per index without TF transformation. In Isaac Sim this also
-        // resulted in invalid frame_ids (topic names) being forwarded to Nav2/AMCL.
-        //
-        // Default behavior is now a safe passthrough of a single scan topic.
-        this->declare_parameter<std::string>("strategy", "passthrough");
-        this->declare_parameter<std::string>("passthrough_topic", "/lidar_front/scan");
         this->declare_parameter<std::string>("output_topic", "/scan");
         this->declare_parameter<std::string>("output_frame_id", "base_link");
         this->declare_parameter<std::vector<std::string>>("merge_topics", std::vector<std::string>{
-            "/lidar_front/scan",
-            "/lidar_left/scan",
-            "/lidar_right/scan",
-            "/lidar_rear/scan",
+            "/lidar_front_left/scan",
+            "/lidar_front_right/scan",
+            "/lidar_rear_left/scan",
+            "/lidar_rear_right/scan"
         });
 
-        strategy_ = this->get_parameter("strategy").as_string();
-        passthrough_topic_ = this->get_parameter("passthrough_topic").as_string();
         output_topic_ = this->get_parameter("output_topic").as_string();
         output_frame_id_ = this->get_parameter("output_frame_id").as_string();
         topics_ = this->get_parameter("merge_topics").as_string_array();
 
+        // Inițializare TF Buffer și Listener
+        tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
+        tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+
         pub_ = this->create_publisher<sensor_msgs::msg::LaserScan>(output_topic_, 10);
 
-        if (strategy_ == "passthrough") {
-            passthrough_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
-                passthrough_topic_, 10,
-                std::bind(&ScanMerger::passthrough_callback, this, std::placeholders::_1));
-            RCLCPP_INFO(this->get_logger(), "scan_merger: passthrough %s -> %s frame_id=%s",
-                        passthrough_topic_.c_str(), output_topic_.c_str(), output_frame_id_.c_str());
-            return;
-        }
-
-        // Legacy strategy: min_merge (kept for compatibility, but requires inputs to be
-        // in a common frame and aligned in angle indexing)
         latest_scans_.resize(topics_.size(), nullptr);
         subs_.reserve(topics_.size());
 
         for (size_t i = 0; i < topics_.size(); ++i) {
             auto callback = [this, i](const sensor_msgs::msg::LaserScan::SharedPtr msg) {
-                this->scan_callback(msg, i);
+                this->latest_scans_[i] = msg;
             };
             subs_.push_back(
                 this->create_subscription<sensor_msgs::msg::LaserScan>(topics_[i], 10, callback));
         }
 
-        timer_ = this->create_timer(15ms, std::bind(&ScanMerger::publish_merged_scan, this));
-        RCLCPP_WARN(this->get_logger(), "scan_merger: using legacy strategy '%s'", strategy_.c_str());
+        // Timer-ul rulează la 20Hz (50ms). Se poate ajusta în funcție de rotația RPLIDAR-ului (ex: 10Hz)
+        timer_ = this->create_wall_timer(50ms, std::bind(&ScanMerger::publish_merged_scan, this));
+        
+        RCLCPP_INFO(this->get_logger(), "Scan Merger inițializat! Aștept date...");
     }
 
 private:
-    void scan_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg, size_t idx) {
-        // Store the pointer to the message
-        latest_scans_[idx] = msg;
-    }
-
-    void passthrough_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg) {
-        if (!pub_) return;
-        auto out = *msg;
-        if (!output_frame_id_.empty()) {
-            out.header.frame_id = output_frame_id_;
-        }
-        pub_->publish(out);
-    }
-
     void publish_merged_scan() {
-        // Check if we have received at least one message for every topic
+        bool has_data = false;
         for (const auto& scan : latest_scans_) {
-            if (!scan) return; // If any pointer is null, return
+            if (scan != nullptr) {
+                has_data = true;
+                break;
+            }
         }
 
-        // Reference scan (index 0)
-        auto ref_scan = latest_scans_[0];
+        if (!has_data) return; // Nu avem niciun scan încă
 
+        // Configurăm scanul final (360 grade)
         auto merged = sensor_msgs::msg::LaserScan();
+        merged.header.stamp = this->now();
+        merged.header.frame_id = output_frame_id_;
+        
+        // Setup rezoluție: RPLIDAR C1 are o rezoluție tipică destul de bună.
+        // Aici definim rezoluția scanului centralizat (ex. 0.5 grade -> ~0.0087 rad)
+        const double resolution_deg = 0.5; 
+        merged.angle_increment = resolution_deg * M_PI / 180.0;
+        merged.angle_min = -M_PI;
+        merged.angle_max = M_PI;
+        merged.range_min = 0.05; // 5 cm
+        merged.range_max = 12.0; // 12 m (specificație aprox C1)
+        
+        size_t num_points = std::ceil((merged.angle_max - merged.angle_min) / merged.angle_increment);
+        merged.ranges.assign(num_points, std::numeric_limits<float>::infinity());
 
-        // Copy Metadata
-        merged.header = ref_scan->header;
-        if (!output_frame_id_.empty()) {
-            merged.header.frame_id = output_frame_id_;
-        }
-        merged.angle_min = ref_scan->angle_min;
-        merged.angle_max = ref_scan->angle_max;
-        merged.angle_increment = ref_scan->angle_increment;
-        merged.time_increment = ref_scan->time_increment;
-        merged.scan_time = ref_scan->scan_time;
-
-        // Calculate global Min/Max Range
-        merged.range_min = ref_scan->range_min;
-        merged.range_max = ref_scan->range_max;
-
+        // Parcurgem fiecare scan primit
         for (const auto& scan : latest_scans_) {
-            if (scan->range_min < merged.range_min) merged.range_min = scan->range_min;
-            if (scan->range_max > merged.range_max) merged.range_max = scan->range_max;
-        }
+            if (!scan) continue;
 
-        // Merge Ranges
-        size_t num_points = ref_scan->ranges.size();
-        merged.ranges.reserve(num_points);
+            // Obținem transformarea de la cadrul senzorului curent la base_link
+            geometry_msgs::msg::TransformStamped transform_msg;
+            try {
+                transform_msg = tf_buffer_->lookupTransform(
+                    output_frame_id_, scan->header.frame_id, 
+                    tf2::TimePointZero); // Luăm cel mai recent TF
+            } catch (const tf2::TransformException & ex) {
+                RCLCPP_WARN_SKIPFIRST_THROTTLE(this->get_logger(), *this->get_clock(), 1000, 
+                    "Eroare TF: %s", ex.what());
+                continue;
+            }
 
-        for (size_t i = 0; i < num_points; ++i) {
-            std::vector<float> valid_values;
-            valid_values.reserve(latest_scans_.size());
+            // Construim transformarea manual pentru a evita erorile de linker tf2_geometry_msgs
+            tf2::Transform transform;
+                transform.setOrigin(tf2::Vector3(
+                transform_msg.transform.translation.x,
+                transform_msg.transform.translation.y,
+                transform_msg.transform.translation.z
+            ));
+            tf2::Quaternion q(
+                transform_msg.transform.rotation.x,
+                transform_msg.transform.rotation.y,
+                transform_msg.transform.rotation.z,
+                transform_msg.transform.rotation.w
+            );
+            transform.setRotation(q);
 
-            for (const auto& scan : latest_scans_) {
-                // Safety check for array bounds
-                if (i >= scan->ranges.size()) continue;
+            // Parcurgem toate punctele din scanul curent
+            for (size_t i = 0; i < scan->ranges.size(); ++i) {
+                float r = scan->ranges[i];
+                if (r < scan->range_min || r > scan->range_max || std::isnan(r) || std::isinf(r)) {
+                    continue; // Ignorăm punctele invalide
+                }
 
-                float v = scan->ranges[i];
+                // 1. Polar -> Cartezian local
+                double angle = scan->angle_min + i * scan->angle_increment;
+                double x = r * std::cos(angle);
+                double y = r * std::sin(angle);
 
-                // Logic: Check bounds and NaN
-                bool is_valid = (v > scan->range_min) && 
-                                (v < scan->range_max) && 
-                                (!std::isnan(v));
+                // 2. Transformare în base_link
+                tf2::Vector3 point_local(x, y, 0.0);
+                tf2::Vector3 point_base = transform * point_local;
 
-                if (is_valid) {
-                    valid_values.push_back(v);
+                // 3. Cartezian base_link -> Polar base_link
+                double merged_r = std::hypot(point_base.x(), point_base.y());
+                double merged_angle = std::atan2(point_base.y(), point_base.x());
+
+                // 4. Inserare în array-ul final (păstrăm cel mai apropiat obstacol)
+                if (merged_r >= merged.range_min && merged_r <= merged.range_max) {
+                    int index = std::round((merged_angle - merged.angle_min) / merged.angle_increment);
+                    
+                    // Verificare de siguranță pentru limitele array-ului
+                    if (index >= 0 && index < static_cast<int>(num_points)) {
+                        if (merged_r < merged.ranges[index]) {
+                            merged.ranges[index] = merged_r;
+                        }
+                    }
                 }
             }
-
-            if (!valid_values.empty()) {
-                // Use minimum distance found (closest obstacle)
-                merged.ranges.push_back(*std::min_element(valid_values.begin(), valid_values.end()));
-            } else {
-                // No valid data = Infinity
-                merged.ranges.push_back(std::numeric_limits<float>::infinity());
-            }
-        }
-
-        // Handle Intensities (optional, creates zeros if ref has intensities)
-        if (!ref_scan->intensities.empty()) {
-            merged.intensities.resize(num_points, 0.0f);
         }
 
         pub_->publish(merged);
     }
 
-    // --- Member Variables ---
-
     std::vector<std::string> topics_;
-
-    std::string strategy_;
-    std::string passthrough_topic_;
     std::string output_topic_;
     std::string output_frame_id_;
 
-    rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr passthrough_sub_;
-
-    // Holds the latest laser scan messages (pointers can be null)
     std::vector<sensor_msgs::msg::LaserScan::SharedPtr> latest_scans_;
-
-    // Holds the subscriptions to keep them alive
-    // FIXED: Added ::SharedPtr to the type definition
     std::vector<rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr> subs_;
 
     rclcpp::Publisher<sensor_msgs::msg::LaserScan>::SharedPtr pub_;
     rclcpp::TimerBase::SharedPtr timer_;
+
+    std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
+    std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 };
 
 int main(int argc, char* argv[]) {
