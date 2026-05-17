@@ -4,82 +4,121 @@ from rclpy.node import Node
 from geometry_msgs.msg import Twist
 import Jetson.GPIO as GPIO
 
-class MotorControllerNode(Node):
+class MirrorDualMotorController(Node):
     def __init__(self):
-        super().__init__('motor_controller_node')
+        super().__init__('motor_driver_node')
         
-        self.subscription = self.create_subscription(
-            Twist,
-            '/cmd_vel',
-            self.cmd_vel_callback,
-            10
-        )
+        # --- PARAMETRI ---
+        self.declare_parameter('max_linear_speed', 1.5)    
+        self.declare_parameter('robot_wheel_base', 0.45)   
+        self.speed_limit = self.get_parameter('max_linear_speed').get_parameter_value().double_value
+        self.wheel_base = self.get_parameter('robot_wheel_base').get_parameter_value().double_value
         
-        self.pwm_pin_fwd = 32
-        self.pwm_pin_rev = 33
+        self.get_logger().info(f"Sistem Dual Motor - Șasiu în Oglindă. Limită: {self.speed_limit:.2f} m/s")
         
+        # --- CONFIGURARE PINI HARDWARE ---
+        self.PIN_L_SPEED = 32  
+        self.PIN_L_DIR   = 33  
+        
+        self.PIN_R_SPEED = 15  
+        self.PIN_R_DIR   = 7   
+        
+        GPIO.setwarnings(False)
         GPIO.setmode(GPIO.BOARD)
-        GPIO.setup(self.pwm_pin_fwd, GPIO.OUT)
-        GPIO.setup(self.pwm_pin_rev, GPIO.OUT)
         
-        self.pwm_fwd = GPIO.PWM(self.pwm_pin_fwd, 1000)
-        self.pwm_rev = GPIO.PWM(self.pwm_pin_rev, 1000)
+        GPIO.setup(self.PIN_L_SPEED, GPIO.OUT, initial=GPIO.LOW)
+        GPIO.setup(self.PIN_L_DIR,   GPIO.OUT, initial=GPIO.LOW)
+        GPIO.setup(self.PIN_R_SPEED, GPIO.OUT, initial=GPIO.LOW)
+        GPIO.setup(self.PIN_R_DIR,   GPIO.OUT, initial=GPIO.LOW)
         
-        self.pwm_fwd.start(0)
-        self.pwm_rev.start(0)
+        # Stări interne
+        self.duty_L = 0.0
+        self.duty_R = 0.0
+        self.dir_L = "STOP" 
+        self.dir_R = "STOP"
+        self.pulse_counter = 0
         
-        self.wheel_base = 0.30  
-        self.max_speed = 1.5    
-        
-        # --- MODIFICAREA DE SIGURANTA ---
-        # Aici setam limita maxima de putere. 30.0 inseamna 30% din puterea motorului.
-        # Daca motorul abia se misca sau baraie dar nu invarte, poti creste la 40.0 sau 50.0.
-        self.max_allowed_pwm = 30.0 
-        
-        self.get_logger().info(f'Nodul de testare a pornit. LIMITA DE SIGURANTA PWM: {self.max_allowed_pwm}%')
+        self.subscription = self.create_subscription(Twist, '/cmd_vel', self.cmd_vel_callback, 10)
+        self.timer = self.create_timer(0.005, self.timer_hardware_callback)
 
     def cmd_vel_callback(self, msg):
-        v_linear = msg.linear.x
-        v_angular = msg.angular.z
+        linear_x = msg.linear.x
+        angular_z = msg.angular.z
         
-        wheel_speed = v_linear + (v_angular * self.wheel_base / 2.0)
+        # Prioritizează mișcarea liniară pentru stabilitate dacă se comandă și rotație simultan
+        if abs(linear_x) > 0.01 and abs(angular_z) > 0.01:
+            angular_z = angular_z * 0.5
         
-        # Calculam procentul teoretic necesar (0-100)
-        duty_cycle = (abs(wheel_speed) / self.max_speed) * 100.0
+        # Cinematică diferențială standard (v_L și v_R matematice)
+        req_v_L = linear_x - (angular_z * self.wheel_base / 2.0)
+        req_v_R = linear_x - (angular_z * self.wheel_base / 2.0)
         
-        # --- APLICAREA LIMITEI DE SIGURANTA ---
-        # Daca duty_cycle-ul teoretic depaseste limita noastra (ex: 30%), il fortam sa ramana la 30%.
-        duty_cycle = max(0.0, min(self.max_allowed_pwm, duty_cycle))
+        # Plafonare automată (Saturare la limita de 1.5 m/s)
+        v_L = max(min(req_v_L, self.speed_limit), -self.speed_limit)
+        v_R = max(min(req_v_R, self.speed_limit), -self.speed_limit)
         
-        if wheel_speed > 0.01:
-            self.pwm_rev.ChangeDutyCycle(0)
-            self.pwm_fwd.ChangeDutyCycle(duty_cycle)
-            self.get_logger().info(f'Inainte: PWM={duty_cycle:.2f}% (Limitat la {self.max_allowed_pwm}%)')
+        # Calcul procente Duty Cycle
+        self.duty_L = (abs(v_L) / self.speed_limit) * 100.0 if self.speed_limit > 0 else 0.0
+        self.duty_R = (abs(v_R) / self.speed_limit) * 100.0 if self.speed_limit > 0 else 0.0
+        
+        # Deadband logic
+        if self.duty_L < 5.0: self.duty_L = 0.0
+        if self.duty_R < 5.0: self.duty_R = 0.0
+
+        # --- LOGICĂ DIRECȚIE MOTOR STÂNGA (Standard) ---
+        if v_L > 0.01:      self.dir_L = "FORWARD"
+        elif v_L < -0.01:    self.dir_L = "REVERSE"
+        else:                self.dir_L = "STOP"
             
-        elif wheel_speed < -0.01:
-            self.pwm_fwd.ChangeDutyCycle(0)
-            self.pwm_rev.ChangeDutyCycle(duty_cycle)
-            self.get_logger().info(f'Inapoi: PWM={duty_cycle:.2f}% (Limitat la {self.max_allowed_pwm}%)')
-            
+        # --- LOGICĂ DIRECȚIE MOTOR DREAPTA (INVERSATĂ DIN CAUZA MONTAJULUI ÎN OGLINDĂ) ---
+        if v_R > 0.01:      self.dir_R = "FORWARD"  # Când matematica cere înainte, fizic mergem invers
+        elif v_R < -0.01:    self.dir_R = "REVERSE"  # Când matematica cere înapoi, fizic mergem în față
+        else:                self.dir_R = "STOP"
+
+    def timer_hardware_callback(self):
+        self.pulse_counter = (self.pulse_counter + 1) % 20
+        thresh_L = (self.duty_L / 100.0) * 20
+        thresh_R = (self.duty_R / 100.0) * 20
+        
+        # --- CONTROL MOTOR STÂNGA (Logică Inversată pe Reverse) ---
+        if self.dir_L == "FORWARD":
+            GPIO.output(self.PIN_L_DIR, GPIO.LOW)
+            GPIO.output(self.PIN_L_SPEED, GPIO.HIGH if self.pulse_counter < thresh_L else GPIO.LOW)
+        elif self.dir_L == "REVERSE":
+            GPIO.output(self.PIN_L_DIR, GPIO.HIGH)
+            GPIO.output(self.PIN_L_SPEED, GPIO.LOW if self.pulse_counter < thresh_L else GPIO.HIGH)
         else:
-            self.pwm_fwd.ChangeDutyCycle(0)
-            self.pwm_rev.ChangeDutyCycle(0)
-            self.get_logger().info('Stop')
+            GPIO.output(self.PIN_L_SPEED, GPIO.LOW)
+            GPIO.output(self.PIN_L_DIR, GPIO.LOW)
+            
+        # --- CONTROL MOTOR DREAPTA (Logică Simetrică pe Reverse) ---
+        if self.dir_R == "FORWARD":
+            GPIO.output(self.PIN_R_DIR, GPIO.LOW)
+            GPIO.output(self.PIN_R_SPEED, GPIO.HIGH if self.pulse_counter < thresh_R else GPIO.LOW)
+        elif self.dir_R == "REVERSE":
+            GPIO.output(self.PIN_R_DIR, GPIO.HIGH)
+            GPIO.output(self.PIN_R_SPEED, GPIO.HIGH if self.pulse_counter < thresh_R else GPIO.LOW)
+        else:
+            GPIO.output(self.PIN_R_SPEED, GPIO.LOW)
+            GPIO.output(self.PIN_R_DIR, GPIO.LOW)
+
+    def stop_all_motors(self):
+        GPIO.output(self.PIN_L_SPEED, GPIO.LOW)
+        GPIO.output(self.PIN_L_DIR, GPIO.LOW)
+        GPIO.output(self.PIN_R_SPEED, GPIO.LOW)
+        GPIO.output(self.PIN_R_DIR, GPIO.LOW)
 
     def destroy_node(self):
-        self.pwm_fwd.stop()
-        self.pwm_rev.stop()
-        GPIO.cleanup()
+        self.stop_all_motors()
+        try: GPIO.cleanup()
+        except: pass
         super().destroy_node()
 
 def main(args=None):
     rclpy.init(args=args)
-    node = MotorControllerNode()
-    
-    try:
-        rclpy.spin(node)
-    except KeyboardInterrupt:
-        node.get_logger().info('Nod oprit de la tastatura.')
+    node = MirrorDualMotorController()
+    try: rclpy.spin(node)
+    except KeyboardInterrupt: pass
     finally:
         node.destroy_node()
         rclpy.shutdown()
