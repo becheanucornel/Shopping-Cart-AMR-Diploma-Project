@@ -1,125 +1,161 @@
-#!/usr/bin/env python3
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
 import Jetson.GPIO as GPIO
+import time
+import threading
 
-class MirrorDualMotorController(Node):
+# --- Kept Exactly from your Test Script ---
+class SoftwarePWM:
+    """A custom class to simulate PWM on standard digital I/O pins."""
+    def __init__(self, pin, frequency):
+        self.pin = pin
+        self.frequency = frequency
+        self.duty_cycle = 0.0
+        self.is_running = False
+        self.thread = None
+        
+        GPIO.setup(self.pin, GPIO.OUT)
+        GPIO.output(self.pin, GPIO.LOW)
+
+    def start(self, duty_cycle):
+        self.duty_cycle = duty_cycle
+        self.is_running = True
+        self.thread = threading.Thread(target=self._run_pwm, daemon=True)
+        self.thread.start()
+
+    def ChangeDutyCycle(self, duty_cycle):
+        self.duty_cycle = max(0.0, min(100.0, duty_cycle))
+
+    def stop(self):
+        self.is_running = False
+        if self.thread is not None:
+            self.thread.join()
+        GPIO.output(self.pin, GPIO.LOW)
+
+    def _run_pwm(self):
+        while self.is_running:
+            if self.duty_cycle == 0.0:
+                GPIO.output(self.pin, GPIO.LOW)
+                time.sleep(0.05)
+            elif self.duty_cycle == 100.0:
+                GPIO.output(self.pin, GPIO.HIGH)
+                time.sleep(0.05)
+            else:
+                period = 1.0 / self.frequency
+                time_high = period * (self.duty_cycle / 100.0)
+                time_low = period - time_high
+                
+                GPIO.output(self.pin, GPIO.HIGH)
+                time.sleep(time_high)
+                GPIO.output(self.pin, GPIO.LOW)
+                time.sleep(time_low)
+
+
+# --- ROS 2 Node Implementation ---
+class AmrMotorNode(Node):
     def __init__(self):
-        super().__init__('motor_driver_node')
-        
-        # --- PARAMETRI ---
-        self.declare_parameter('max_linear_speed', 1.5)    
-        self.declare_parameter('robot_wheel_base', 0.45)   
-        self.speed_limit = self.get_parameter('max_linear_speed').get_parameter_value().double_value
-        self.wheel_base = self.get_parameter('robot_wheel_base').get_parameter_value().double_value
-        
-        self.get_logger().info(f"Sistem Dual Motor - Șasiu în Oglindă. Limită: {self.speed_limit:.2f} m/s")
-        
-        # --- CONFIGURARE PINI HARDWARE ---
-        self.PIN_L_SPEED = 32  
-        self.PIN_L_DIR   = 33  
-        
-        self.PIN_R_SPEED = 15  
-        self.PIN_R_DIR   = 7   
-        
+        super().__init__('amr_motor_controller')
+
+        # Configuration
+        self.PIN_M1_FWD = 32   # Motor 1 (Left) - Hardware PWM
+        self.PIN_M1_REV = 7    # Motor 1 (Left) - Software PWM
+        self.PIN_M2_FWD = 33   # Motor 2 (Right) - Hardware PWM
+        self.PIN_M2_REV = 15   # Motor 2 (Right) - Software PWM
+        self.PWM_FREQ = 1000
+
+        self.get_logger().info("Initializing GPIO and PWM...")
         GPIO.setwarnings(False)
         GPIO.setmode(GPIO.BOARD)
-        
-        GPIO.setup(self.PIN_L_SPEED, GPIO.OUT, initial=GPIO.LOW)
-        GPIO.setup(self.PIN_L_DIR,   GPIO.OUT, initial=GPIO.LOW)
-        GPIO.setup(self.PIN_R_SPEED, GPIO.OUT, initial=GPIO.LOW)
-        GPIO.setup(self.PIN_R_DIR,   GPIO.OUT, initial=GPIO.LOW)
-        
-        # Stări interne
-        self.duty_L = 0.0
-        self.duty_R = 0.0
-        self.dir_L = "STOP" 
-        self.dir_R = "STOP"
-        self.pulse_counter = 0
-        
-        self.subscription = self.create_subscription(Twist, '/cmd_vel', self.cmd_vel_callback, 10)
-        self.timer = self.create_timer(0.005, self.timer_hardware_callback)
+
+        # Setup Motor 1 (Left)
+        self.pwm_m1_rev = SoftwarePWM(self.PIN_M1_REV, self.PWM_FREQ)
+        self.pwm_m1_rev.start(0)
+        GPIO.setup(self.PIN_M1_FWD, GPIO.OUT)
+        self.pwm_m1_fwd = GPIO.PWM(self.PIN_M1_FWD, self.PWM_FREQ)
+        self.pwm_m1_fwd.start(0)
+
+        # Setup Motor 2 (Right)
+        self.pwm_m2_rev = SoftwarePWM(self.PIN_M2_REV, self.PWM_FREQ)
+        self.pwm_m2_rev.start(0)
+        GPIO.setup(self.PIN_M2_FWD, GPIO.OUT)
+        self.pwm_m2_fwd = GPIO.PWM(self.PIN_M2_FWD, self.PWM_FREQ)
+        self.pwm_m2_fwd.start(0)
+
+        # Subscribe to /cmd_vel
+        self.subscription = self.create_subscription(
+            Twist,
+            '/cmd_vel',
+            self.cmd_vel_callback,
+            10
+        )
+
+        self.get_logger().info("AMR Motor Node Ready. Listening to /cmd_vel...")
 
     def cmd_vel_callback(self, msg):
-        linear_x = msg.linear.x
-        angular_z = msg.angular.z
-        
-        # Prioritizează mișcarea liniară pentru stabilitate dacă se comandă și rotație simultan
-        if abs(linear_x) > 0.01 and abs(angular_z) > 0.01:
-            angular_z = angular_z * 0.5
-        
-        # Cinematică diferențială standard (v_L și v_R matematice)
-        req_v_L = linear_x - (angular_z * self.wheel_base / 2.0)
-        req_v_R = linear_x - (angular_z * self.wheel_base / 2.0)
-        
-        # Plafonare automată (Saturare la limita de 1.5 m/s)
-        v_L = max(min(req_v_L, self.speed_limit), -self.speed_limit)
-        v_R = max(min(req_v_R, self.speed_limit), -self.speed_limit)
-        
-        # Calcul procente Duty Cycle
-        self.duty_L = (abs(v_L) / self.speed_limit) * 100.0 if self.speed_limit > 0 else 0.0
-        self.duty_R = (abs(v_R) / self.speed_limit) * 100.0 if self.speed_limit > 0 else 0.0
-        
-        # Deadband logic
-        if self.duty_L < 5.0: self.duty_L = 0.0
-        if self.duty_R < 5.0: self.duty_R = 0.0
+        self.last_cmd_time = self.get_clock().now()
 
-        # --- LOGICĂ DIRECȚIE MOTOR STÂNGA (Standard) ---
-        if v_L > 0.01:      self.dir_L = "FORWARD"
-        elif v_L < -0.01:    self.dir_L = "REVERSE"
-        else:                self.dir_L = "STOP"
-            
-        # --- LOGICĂ DIRECȚIE MOTOR DREAPTA (INVERSATĂ DIN CAUZA MONTAJULUI ÎN OGLINDĂ) ---
-        if v_R > 0.01:      self.dir_R = "FORWARD"  # Când matematica cere înainte, fizic mergem invers
-        elif v_R < -0.01:    self.dir_R = "REVERSE"  # Când matematica cere înapoi, fizic mergem în față
-        else:                self.dir_R = "STOP"
+        # Differential Drive Kinematics
+        linear = msg.linear.x   # Forward/Back
+        angular = msg.angular.z # Left/Right rotation
 
-    def timer_hardware_callback(self):
-        self.pulse_counter = (self.pulse_counter + 1) % 20
-        thresh_L = (self.duty_L / 100.0) * 20
-        thresh_R = (self.duty_R / 100.0) * 20
-        
-        # --- CONTROL MOTOR STÂNGA (Logică Inversată pe Reverse) ---
-        if self.dir_L == "FORWARD":
-            GPIO.output(self.PIN_L_DIR, GPIO.LOW)
-            GPIO.output(self.PIN_L_SPEED, GPIO.HIGH if self.pulse_counter < thresh_L else GPIO.LOW)
-        elif self.dir_L == "REVERSE":
-            GPIO.output(self.PIN_L_DIR, GPIO.HIGH)
-            GPIO.output(self.PIN_L_SPEED, GPIO.LOW if self.pulse_counter < thresh_L else GPIO.HIGH)
+        # Mix linear and angular to get wheel speeds
+        left_speed = linear - angular
+        right_speed = linear + angular
+
+        # Normalize speeds to ensure we don't exceed 100% PWM while keeping the turning ratio
+        max_speed = max(abs(left_speed), abs(right_speed), 1.0)
+        left_pwm = (left_speed / max_speed) * 100.0
+        right_pwm = (right_speed / max_speed) * 100.0
+
+        # Apply to Motor 1 (Left)
+        if left_pwm > 0:
+            self.pwm_m1_rev.ChangeDutyCycle(0)
+            self.pwm_m1_fwd.ChangeDutyCycle(left_pwm)
+        elif left_pwm < 0:
+            self.pwm_m1_fwd.ChangeDutyCycle(0)
+            self.pwm_m1_rev.ChangeDutyCycle(abs(left_pwm))
         else:
-            GPIO.output(self.PIN_L_SPEED, GPIO.LOW)
-            GPIO.output(self.PIN_L_DIR, GPIO.LOW)
-            
-        # --- CONTROL MOTOR DREAPTA (Logică Simetrică pe Reverse) ---
-        if self.dir_R == "FORWARD":
-            GPIO.output(self.PIN_R_DIR, GPIO.LOW)
-            GPIO.output(self.PIN_R_SPEED, GPIO.HIGH if self.pulse_counter < thresh_R else GPIO.LOW)
-        elif self.dir_R == "REVERSE":
-            GPIO.output(self.PIN_R_DIR, GPIO.HIGH)
-            GPIO.output(self.PIN_R_SPEED, GPIO.HIGH if self.pulse_counter < thresh_R else GPIO.LOW)
+            self.pwm_m1_fwd.ChangeDutyCycle(0)
+            self.pwm_m1_rev.ChangeDutyCycle(0)
+
+        # Apply to Motor 2 (Right)
+        if right_pwm > 0:
+            self.pwm_m2_rev.ChangeDutyCycle(0)
+            self.pwm_m2_fwd.ChangeDutyCycle(right_pwm)
+        elif right_pwm < 0:
+            self.pwm_m2_fwd.ChangeDutyCycle(0)
+            self.pwm_m2_rev.ChangeDutyCycle(abs(right_pwm))
         else:
-            GPIO.output(self.PIN_R_SPEED, GPIO.LOW)
-            GPIO.output(self.PIN_R_DIR, GPIO.LOW)
+            self.pwm_m2_fwd.ChangeDutyCycle(0)
+            self.pwm_m2_rev.ChangeDutyCycle(0)
 
-    def stop_all_motors(self):
-        GPIO.output(self.PIN_L_SPEED, GPIO.LOW)
-        GPIO.output(self.PIN_L_DIR, GPIO.LOW)
-        GPIO.output(self.PIN_R_SPEED, GPIO.LOW)
-        GPIO.output(self.PIN_R_DIR, GPIO.LOW)
+    def stop_motors(self):
+        self.pwm_m1_fwd.ChangeDutyCycle(0)
+        self.pwm_m1_rev.ChangeDutyCycle(0)
+        self.pwm_m2_fwd.ChangeDutyCycle(0)
+        self.pwm_m2_rev.ChangeDutyCycle(0)
 
-    def destroy_node(self):
-        self.stop_all_motors()
-        try: GPIO.cleanup()
-        except: pass
-        super().destroy_node()
+    def cleanup(self):
+        self.get_logger().info("Shutting down motors and cleaning up GPIO...")
+        self.stop_motors()
+        self.pwm_m1_rev.stop()
+        self.pwm_m1_fwd.stop()
+        self.pwm_m2_rev.stop()
+        self.pwm_m2_fwd.stop()
+        GPIO.cleanup()
+
 
 def main(args=None):
     rclpy.init(args=args)
-    node = MirrorDualMotorController()
-    try: rclpy.spin(node)
-    except KeyboardInterrupt: pass
+    node = AmrMotorNode()
+
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        node.get_logger().info("Keyboard Interrupt. Shutting down...")
     finally:
+        node.cleanup()
         node.destroy_node()
         rclpy.shutdown()
 

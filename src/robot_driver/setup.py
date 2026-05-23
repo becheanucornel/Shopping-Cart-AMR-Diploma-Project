@@ -14,7 +14,7 @@ setup(
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='hephaestus',
-    maintainer_email='hephaestus@todo.todo',
+    maintainer_email='becheanucornel28@gmail.com',
     description='TODO: Package description',
     license='TODO: License declaration',
     extras_require={
