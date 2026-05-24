@@ -24,7 +24,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'motor_controller_node = robot_driver.motor_controller:main'
+            'motor_controller_node = robot_driver.motor_controller:main',
+            'batery_monitor_node = robot_driver.battery_reader:main',
         ],
     },
 )
