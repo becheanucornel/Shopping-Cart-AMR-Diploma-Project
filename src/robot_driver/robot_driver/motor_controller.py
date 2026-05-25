@@ -77,7 +77,7 @@ class AmrMotorNode(Node):
         self.PIN_ENC_R = 16      # Right Channel A
         self.PIN_ENC_R_B = 18    # Right Channel B (Change to your actual pin)
         
-        self.declare_parameter('wheel_radius', 0.0835)      
+        self.declare_parameter('wheel_radius', 0.067)      
         self.declare_parameter('wheelbase', 0.40)           
         self.declare_parameter('ticks_per_rev', 1440.0)      
         self.declare_parameter('odom_frame', 'custom_odom')        
@@ -154,14 +154,14 @@ class AmrMotorNode(Node):
 
         # --- Timers ---
         self.timer = self.create_timer(0.05, self.update_odometry) # 20Hz Odometry
-        self.debug_timer = self.create_timer(1.0, self.print_debug_info) # 1Hz Tick Logger
+        #self.debug_timer = self.create_timer(1.0, self.print_debug_info) # 1Hz Tick Logger
 
         self.get_logger().info("AMR Motor Node Ready. Listening to /cmd_vel and Encoders...")
 
     # --- Debug Logger ---
-    def print_debug_info(self):
-        """Prints the raw hardware tick counts once per second."""
-        self.get_logger().info(f"TICKS | Left: {self.left_ticks} | Right: {self.right_ticks}")
+    #def print_debug_info(self):
+    #    """Prints #he raw hardware tick counts once per second."""
+    #    self.get_logger().info(f"TICKS | Left: {self.left_ticks} | Right: {self.right_ticks}")
         
     # --- TRUE Quadrature Encoder Callbacks (Filtered) ---
     # --- Command-Directed Encoder Callbacks (Filtered) ---

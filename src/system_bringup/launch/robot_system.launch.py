@@ -51,10 +51,10 @@ def generate_launch_description():
     declare_nav_cruise_angular_scale_arg = DeclareLaunchArgument('nav_cruise_angular_scale', default_value='1.0')
     declare_nav_stuck_linear_scale_arg = DeclareLaunchArgument('nav_stuck_linear_scale', default_value='8.0')
     declare_nav_stuck_angular_scale_arg = DeclareLaunchArgument('nav_stuck_angular_scale', default_value='4.0')
-    declare_nav_min_linear_x_arg = DeclareLaunchArgument('nav_min_linear_x', default_value='0.4')
-    declare_nav_min_angular_z_arg = DeclareLaunchArgument('nav_min_angular_z', default_value='0.6')
-    declare_nav_stuck_linear_x_arg = DeclareLaunchArgument('nav_stuck_linear_x', default_value='0.03')
-    declare_nav_stuck_angular_z_arg = DeclareLaunchArgument('nav_stuck_angular_z', default_value='0.03')
+    declare_nav_min_linear_x_arg = DeclareLaunchArgument('nav_min_linear_x', default_value='0.1')
+    declare_nav_min_angular_z_arg = DeclareLaunchArgument('nav_min_angular_z', default_value='0.3')
+    declare_nav_stuck_linear_x_arg = DeclareLaunchArgument('nav_stuck_linear_x', default_value='0.05')
+    declare_nav_stuck_angular_z_arg = DeclareLaunchArgument('nav_stuck_angular_z', default_value='0.05')
     declare_enable_follow_arg = DeclareLaunchArgument('enable_follow', default_value='true')
     declare_camera_width_arg = DeclareLaunchArgument('camera_width', default_value='640.0')
     declare_target_height_arg = DeclareLaunchArgument('target_height', default_value='280.0')
@@ -145,7 +145,11 @@ def generate_launch_description():
 
     # --- NEW: LiDAR Odometry Node ---
     rf2o_node = Node(
-        package='rf2o_laser_odometry', executable='rf2o_laser_odometry_node', name='rf2o_laser_odometry', output='screen',
+        package='rf2o_laser_odometry', 
+        executable='rf2o_laser_odometry_node', 
+        name='rf2o_laser_odometry', 
+        output='screen',
+        arguments=['--ros-args', '--log-level', 'WARN'], # <--- ADD THIS LINE
         parameters=[{
             'laser_scan_topic': '/scan',
             'odom_topic': '/odom_rf2o',
