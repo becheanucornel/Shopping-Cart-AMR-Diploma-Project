@@ -36,6 +36,8 @@ public:
         this->declare_parameter<double>("nav_stuck_angular_z", 0.02);
         this->declare_parameter<double>("cmd_vel_publish_rate_hz", 20.0);
         this->declare_parameter<double>("cmd_vel_timeout_sec", 0.5);
+        this->declare_parameter<std::string>("map_save_path", "/tmp/saved_map");
+        this->declare_parameter<std::string>("map_yaml_path", "/tmp/map.yaml");
 
         // Citire parametrii
         nav_cruise_linear_scale_ = this->get_parameter("nav_cruise_linear_scale").as_double();
@@ -159,8 +161,13 @@ private:
             R_INFO("Iesire din modul MAPPING. Salvez harta si opresc SLAM...");
             
             // 1. Salvăm harta
-            std::system("ros2 run nav2_map_server map_saver_cli -f /home/apollo/MobileRobot/src/system_bringup/map/map --ros-args -p save_map_timeout:=10.0");
-            
+            std::string save_path = this->get_parameter("map_save_path").as_string();
+            std::string yaml_path = this->get_parameter("map_yaml_path").as_string();
+    
+            // Use dynamic string construction
+            std::string save_cmd = "ros2 run nav2_map_server map_saver_cli -f " + save_path + " --ros-args -p save_map_timeout:=10.0";
+            std::system(save_cmd.c_str());
+
             // 2. Oprim curat SLAM
             std::system("pkill -2 -f slam_toolbox");
             std::system("pkill -2 -f async_slam_toolbox_node");
@@ -172,7 +179,7 @@ private:
             std::system("ros2 lifecycle set /amcl activate &");
 
             // 4. Încărcăm noua hartă direct în map_server
-            std::string load_cmd = "ros2 service call /map_server/load_map nav2_msgs/srv/LoadMap \"{map_url: '/home/apollo/MobileRobot/src/system_bringup/map/map.yaml'}\" &";
+            std::string load_cmd = "ros2 service call /map_server/load_map nav2_msgs/srv/LoadMap \"{map_url: '" + yaml_path + "'}\" &";
             std::system(load_cmd.c_str());
         }
 

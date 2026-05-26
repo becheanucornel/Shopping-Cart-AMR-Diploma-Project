@@ -32,7 +32,7 @@ def generate_launch_description():
     slam_params_file = os.path.join(system_bringup_dir, 'config', 'slam_toolbox.yaml')
     robot_rviz_config = os.path.join(system_bringup_dir, 'rviz', 'shopping_cart_amr.rviz')
     
-    # --- Launch Arguments (Kept exactly as provided) ---
+    # --- Launch Arguments ---
     declare_mode_arg = DeclareLaunchArgument('mode', default_value='idle')
     declare_use_sim_time_arg = DeclareLaunchArgument('use_sim_time', default_value='false')
     declare_rviz_arg = DeclareLaunchArgument('rviz', default_value='false')
@@ -90,46 +90,41 @@ def generate_launch_description():
             'nav_min_angular_z': ParameterValue(LaunchConfiguration('nav_min_angular_z'), value_type=float),
             'nav_stuck_linear_x': ParameterValue(LaunchConfiguration('nav_stuck_linear_x'), value_type=float),
             'nav_stuck_angular_z': ParameterValue(LaunchConfiguration('nav_stuck_angular_z'), value_type=float),
+            'map_save_path': os.path.join(system_bringup_dir, 'map', 'map'),
+            'map_yaml_path': os.path.join(system_bringup_dir, 'map', 'map.yaml'),
         }],
         condition=IfCondition(PythonExpression(["'", LaunchConfiguration('mode'), "' not in ['view', 'description']"]))
     )
     
-    # --- FIXED: Sensor Nodes Assigned to Variables ---
+    # --- FIXED: Sensor Nodes mapped to URDF frames cleanly ---
     lidar_fl = Node(
         package='sllidar_ros2', executable='sllidar_node', name='sllidar_front_left', output='screen',
-        parameters=[{'serial_port': '/dev/ttyUSB0', 'serial_baudrate': 460800, 'frame_id': 'lidar_fr_link', 'angle_compensate': True}],
-        remappings=[('/scan', '/lidar_front_right/scan')]
+        parameters=[{'serial_port': '/dev/ttyUSB0', 'serial_baudrate': 460800, 'frame_id': 'lidar_front_left', 'angle_compensate': True, 'inverted': True}],
+        remappings=[('/scan', '/lidar_front_left/scan')]
     )
     
     lidar_fr = Node(
         package='sllidar_ros2', executable='sllidar_node', name='sllidar_front_right', output='screen',
-        parameters=[{'serial_port': '/dev/ttyUSB1', 'serial_baudrate': 460800, 'frame_id': 'lidar_fl_link', 'angle_compensate': True}],
-        remappings=[('/scan', '/lidar_front_left/scan')]
+        parameters=[{'serial_port': '/dev/ttyUSB1', 'serial_baudrate': 460800, 'frame_id': 'lidar_front_right', 'angle_compensate': True, 'inverted': True}],
+        remappings=[('/scan', '/lidar_front_right/scan')]
     )
     
     lidar_br = Node(
         package='sllidar_ros2', executable='sllidar_node', name='sllidar_back_right', output='screen',
-        parameters=[{'serial_port': '/dev/ttyUSB2', 'serial_baudrate': 460800, 'frame_id': 'lidar_br_link', 'angle_compensate': True}], 
+        parameters=[{'serial_port': '/dev/ttyUSB2', 'serial_baudrate': 460800, 'frame_id': 'lidar_back_right', 'angle_compensate': True, 'inverted': False}], 
         remappings=[('/scan', '/lidar_back_right/scan')]
     )
     
     lidar_bl = Node(
         package='sllidar_ros2', executable='sllidar_node', name='sllidar_back_left', output='screen',
-        parameters=[{'serial_port': '/dev/ttyUSB3', 'serial_baudrate': 460800, 'frame_id': 'lidar_bl_link', 'angle_compensate': True}], 
+        parameters=[{'serial_port': '/dev/ttyUSB3', 'serial_baudrate': 460800, 'frame_id': 'lidar_back_left', 'angle_compensate': True, 'inverted': False}], 
         remappings=[('/scan', '/lidar_back_left/scan')]
     )
 
-    # --- FIXED: Static Transforms enforcing custom_base_link ---
-    tf_fl = Node(package='tf2_ros', executable='static_transform_publisher', name='tf_fl',
-        arguments=['0.2', '0.2', '0.1', '0.0', '0.0', '0.0', 'custom_base_link', 'lidar_fl_link'])
-    tf_fr = Node(package='tf2_ros', executable='static_transform_publisher', name='tf_fr',
-        arguments=['0.2', '-0.2', '0.1', '0.0', '0.0', '0.0', 'custom_base_link', 'lidar_fr_link'])
-    tf_br = Node(package='tf2_ros', executable='static_transform_publisher', name='tf_br',
-        arguments=['-0.2', '-0.2', '0.1', '3.14159', '0.0', '0.0', 'custom_base_link', 'lidar_br_link'])
-    tf_bl = Node(package='tf2_ros', executable='static_transform_publisher', name='tf_bl',
-        arguments=['-0.2', '0.2', '0.1', '3.14159', '0.0', '0.0', 'custom_base_link', 'lidar_bl_link'])
+    # --- Static Transforms REMOVED to prevent duplicate TF errors ---
+    # The robot_state_publisher handles these via the URDF now.
 
-    # --- FIXED: Scan Merger enforcing custom_base_link ---
+    # --- Scan Merger ---
     scan_merger = Node(
         package='scan_merger_module', executable='scan_merger_node', name='scan_merger', output='screen',
         parameters=[{
@@ -143,13 +138,13 @@ def generate_launch_description():
         package='robot_driver', executable='motor_controller_node', name='motor_controller', output='screen'
     )
 
-    # --- NEW: LiDAR Odometry Node ---
+    # --- LiDAR Odometry Node ---
     rf2o_node = Node(
         package='rf2o_laser_odometry', 
         executable='rf2o_laser_odometry_node', 
         name='rf2o_laser_odometry', 
         output='screen',
-        arguments=['--ros-args', '--log-level', 'WARN'], # <--- ADD THIS LINE
+        arguments=['--ros-args', '--log-level', 'WARN'],
         parameters=[{
             'laser_scan_topic': '/scan',
             'odom_topic': '/odom_rf2o',
@@ -161,7 +156,7 @@ def generate_launch_description():
         }]
     )
 
-    # --- NEW: Sensor Fusion (EKF) Node ---
+    # --- Sensor Fusion (EKF) Node ---
     ekf_node = Node(
         package='robot_localization', executable='ekf_node', name='ekf_filter_node', output='screen',
         parameters=[os.path.join(system_bringup_dir, 'config', 'ekf.yaml')] 
@@ -253,13 +248,7 @@ def generate_launch_description():
     )
     
     yolo_tracker_node = Node(
-        package='human_detection_module', executable='yolo_human_tracker', name='yolo_human_tracker', output='screen',
-        condition=IfCondition(LaunchConfiguration('enable_follow'))
-    )
-
-    follow_controller_node = Node(
-        package='human_detection_module', executable='follow_me_controller', name='follow_me_controller', output='screen',
-        parameters=[{'camera_width': ParameterValue(LaunchConfiguration('camera_width'), value_type=float), 'target_height': ParameterValue(LaunchConfiguration('target_height'), value_type=float)}],
+        package='human_detection_module', executable='detection_node', name='yolo_tracker', output='screen',
         condition=IfCondition(LaunchConfiguration('enable_follow'))
     )
     
@@ -272,16 +261,15 @@ def generate_launch_description():
     staged_startup = IfCondition(LaunchConfiguration('use_startup_delays'))
     immediate_startup = UnlessCondition(LaunchConfiguration('use_startup_delays'))
 
-    # All nodes to be launched
+    # All nodes to be launched (Static TFs removed)
     all_nodes = [
         robot_state_publisher, joint_state_publisher, joint_state_publisher_gui,
-        tf_fl, tf_fr, tf_br, tf_bl,  # Fixed Static TFs
-        lidar_fl, lidar_fr, lidar_br, lidar_bl, # Fixed LiDARs
-        scan_merger, motor_controller, rf2o_node, ekf_node, # Integration nodes
+        lidar_fl, lidar_fr, lidar_br, lidar_bl,
+        scan_merger, motor_controller, rf2o_node, ekf_node,
         mode_manager, map_server_node, amcl_node, map_server_lifecycle,
         slam_toolbox_mapping, map_saver_server, map_saver_lifecycle,
         nav2_container, load_nav2_nodes, web_server, rosbridge_websocket,
-        yolo_tracker_node, follow_controller_node, rviz2
+        yolo_tracker_node, rviz2
     ]
 
     immediate_group = GroupAction(
@@ -292,53 +280,40 @@ def generate_launch_description():
     staged_group = GroupAction(
         condition=staged_startup,
         actions=[
-            LogInfo(msg="[Stage 1/6] Starting robot state publisher & static TFs..."),
+            LogInfo(msg="[Stage 1/6] Starting robot state publisher..."),
             robot_state_publisher, joint_state_publisher, joint_state_publisher_gui,
-            tf_fl, tf_fr, tf_br, tf_bl,
-            TimerAction(
-                period=1.0,
-                actions=[
-                    LogInfo(msg="[Stage 2/6] Starting Sensors & Motor Control..."),
-                    lidar_fl, lidar_fr, lidar_br, lidar_bl,
-                    scan_merger, motor_controller
-                ]
-            ),
-            TimerAction(
-                period=2.0,
-                actions=[
-                    LogInfo(msg="[Stage 2.5/6] Starting Odometry & Sensor Fusion..."),
-                    rf2o_node, ekf_node
-                ]
-            ),
-            TimerAction(
-                period=3.0,
-                actions=[
-                    LogInfo(msg="[Stage 3/6] Starting localization / mapping..."),
-                    mode_manager, map_server_node, amcl_node, map_server_lifecycle,
-                    slam_toolbox_mapping, map_saver_server, map_saver_lifecycle,
-                ]
-            ),
-            TimerAction(
-                period=4.0,
-                actions=[
-                    LogInfo(msg="[Stage 4/6] Starting Nav2 container..."),
-                    nav2_container,
-                ]
-            ),
-            TimerAction(
-                period=5.0,
-                actions=[
-                    LogInfo(msg="[Stage 5/6] Loading Nav2 composable nodes..."),
-                    load_nav2_nodes,
-                ]
-            ),
-            TimerAction(
-                period=5.5,
-                actions=[
-                    LogInfo(msg="[Stage 6/6] Starting Web, ROSBridge & Follow-Me modules..."),
-                    web_server, rosbridge_websocket, yolo_tracker_node, follow_controller_node, rviz2,
-                ]
-            ),
+            
+            # Start Lidars one by one with 0.5s gaps
+            TimerAction(period=1.0, actions=[LogInfo(msg="[Stage 2/6] Starting Lidar FL..."), lidar_fl]),
+            TimerAction(period=2.0, actions=[LogInfo(msg="[Stage 2/6] Starting Lidar FR..."), lidar_fr]),
+            TimerAction(period=3.0, actions=[LogInfo(msg="[Stage 2/6] Starting Lidar BL..."), lidar_bl]),
+            TimerAction(period=4.0, actions=[LogInfo(msg="[Stage 2/6] Starting Lidar BR..."), lidar_br]),
+            
+            TimerAction(period=5.0, actions=[
+                LogInfo(msg="[Stage 2.5/6] Starting Scan Merger & Motor Control..."),
+                scan_merger, motor_controller
+            ]),
+            TimerAction(period=5.5, actions=[
+                LogInfo(msg="[Stage 2.75/6] Starting Odometry & Sensor Fusion..."),
+                rf2o_node, ekf_node
+            ]),
+            TimerAction(period=6.0, actions=[
+                LogInfo(msg="[Stage 3/6] Starting localization / mapping..."),
+                mode_manager, map_server_node, amcl_node, map_server_lifecycle,
+                slam_toolbox_mapping, map_saver_server, map_saver_lifecycle,
+            ]),
+            TimerAction(period=7.0, actions=[
+                LogInfo(msg="[Stage 4/6] Starting Nav2 container..."),
+                nav2_container,
+            ]),
+            TimerAction(period=8.0, actions=[
+                LogInfo(msg="[Stage 5/6] Loading Nav2 composable nodes..."),
+                load_nav2_nodes,
+            ]),
+            TimerAction(period=9.0, actions=[
+                LogInfo(msg="[Stage 6/6] Starting Web, ROSBridge & Follow-Me modules..."),
+                web_server, rosbridge_websocket, yolo_tracker_node, rviz2,
+            ]),
         ]
     )
 
