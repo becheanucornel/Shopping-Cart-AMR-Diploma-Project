@@ -1,0 +1,41 @@
+<root main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <RecoveryNode number_of_retries="4" name="NavigateRecovery">
+      
+      <Fallback name="NavigationSelection">
+        
+        <Sequence name="FollowTarget">
+           <IsPathValid path="{path}"/> 
+           <FollowPath path="{path}" controller_id="DynamicPointFollower"/>
+        </Sequence>
+
+        <PipelineSequence name="NavigateWithReplanning">
+          <RateController hz="1.0">
+            <RecoveryNode number_of_retries="1" name="ComputePathToPose">
+              <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
+              <ClearEntireCostmap name="ClearGlobalCostmap-Context" service_name="global_costmap/clear_entirely_global_costmap"/>
+            </RecoveryNode>
+          </RateController>
+          <FollowPath path="{path}" controller_id="FollowPath"/>
+        </PipelineSequence>
+
+      </Fallback>
+
+      <ReactiveFallback name="RecoveryFallback">
+        <Sequence name="PoliteWait">
+          <Wait wait_duration="3.0"/>
+          <ClearEntireCostmap name="ClearLocalCostmap-Subtree" service_name="local_costmap/clear_entirely_local_costmap"/>
+        </Sequence>
+        <Sequence name="GentleSpin">
+          <Wait wait_duration="1.0"/>
+          <Spin spin_dist="1.57" server_timeout="10"/>
+        </Sequence>
+        <Sequence name="TinyBackup">
+          <BackUp backup_dist="0.15" backup_speed="0.1" server_timeout="10"/>
+          <Wait wait_duration="1.0"/>
+        </Sequence>
+      </ReactiveFallback>
+      
+    </RecoveryNode>
+  </BehaviorTree>
+</root>

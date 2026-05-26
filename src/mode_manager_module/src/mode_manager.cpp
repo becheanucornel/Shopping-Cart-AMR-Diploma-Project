@@ -202,11 +202,32 @@ private:
         geometry_msgs::msg::Twist out;
 
         if (current_mode_ == "MANUAL" || current_mode_ == "MAPPING") {
-            if ((now - last_teleop_cmd_time_) < timeout) out = last_teleop_cmd_;
+            // Teleop passes through directly for instant response
+            if ((now - last_teleop_cmd_time_) < timeout) {
+                out = last_teleop_cmd_;
+            }
         } else if (current_mode_ == "NAVIGATION") {
-            if ((now - last_nav_cmd_time_) < timeout) out = last_nav_cmd_;
+            if ((now - last_nav_cmd_time_) < timeout) {
+                out = last_nav_cmd_;
+                
+                // 1. Apply Cruise Scaling to Nav2 commands
+                out.linear.x *= nav_cruise_linear_scale_;
+                out.angular.z *= nav_cruise_angular_scale_;
+                
+                // 2. Anti-Stuck Logic
+                // If the robot is commanded to move but the odometry says it's physically stationary
+                if (std::abs(out.linear.x) > 0.0 && std::abs(last_odom_linear_x_) < nav_stuck_linear_x_) {
+                    out.linear.x *= nav_linear_scale_; // Temporarily boost power to overcome friction
+                    // Ensure it meets minimum required speed to break static friction
+                    if (out.linear.x > 0) out.linear.x = std::max(out.linear.x, nav_min_linear_x_);
+                    if (out.linear.x < 0) out.linear.x = std::min(out.linear.x, -nav_min_linear_x_);
+                }
+            }
         } else if (current_mode_ == "FOLLOWING") {
-            if ((now - last_follow_cmd_time_) < timeout) out = last_follow_cmd_;
+            if ((now - last_follow_cmd_time_) < timeout) {
+                out = last_follow_cmd_;
+                // YOLO visual servoing can be scaled here in the future if needed
+            }
         }
         
         cmd_vel_publisher_->publish(out);

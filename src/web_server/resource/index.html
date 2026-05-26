@@ -31,7 +31,7 @@
         .section:hover { box-shadow: 0 12px 35px rgba(0,0,0,0.6); border-color: rgba(20, 156, 76, 0.4); }
         h2 { color: #149c4c; margin-top: 0; border-bottom: 2px solid rgba(20, 156, 76, 0.2); padding-bottom: 10px; text-transform: uppercase; font-size: 1.2em; letter-spacing: 1px; }
 
-        /* Map Container - Reduced height to 400px to avoid scrolling */
+        /* Map Container */
         #map-container { width: 100%; height: 400px; margin: 0 auto; background: #111; border-radius: 10px; border: 1px solid #333; overflow: hidden; cursor: crosshair; position: relative; transition: all 0.3s ease; }
         
         /* Status Grid */
@@ -57,8 +57,15 @@
         .stop-btn { background: #8b0000 !important; border-color: #ff4444 !important; color: white; }
         .stop-btn:hover:not(:disabled) { background: #cc0000 !important; box-shadow: 0 0 12px rgba(255, 68, 68, 0.4); }
         
-        input { background: #0b0b0b; color: #149c4c; border: 1px solid #444; padding: 10px; border-radius: 6px; font-weight: bold; width: 100%; box-sizing: border-box; transition: border-color 0.3s ease; }
-        input:focus { outline: none; border-color: #149c4c; }
+        input[type="number"] { background: #0b0b0b; color: #149c4c; border: 1px solid #444; padding: 10px; border-radius: 6px; font-weight: bold; width: 100%; box-sizing: border-box; transition: border-color 0.3s ease; }
+        input[type="number"]:focus { outline: none; border-color: #149c4c; }
+
+        /* Custom Speed Slider Styles */
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]:focus { outline: none; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 20px; width: 20px; border-radius: 50%; background: #149c4c; cursor: pointer; margin-top: -6px; box-shadow: 0 0 10px rgba(20, 156, 76, 0.5); transition: transform 0.1s; }
+        input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 8px; cursor: pointer; background: #333; border-radius: 4px; border: 1px solid #444; }
         
         /* SLAM Panel */
         .slam-box { margin-top: 20px; padding: 15px; background: rgba(255, 165, 0, 0.05); border: 1px solid rgba(255, 165, 0, 0.3); border-radius: 10px; text-align: center; }
@@ -67,10 +74,7 @@
         .btn-stop-slam { background: #149c4c; color: white; border-color: #21d368; width: 100%; margin-top: 10px; }
         
         /* Animations */
-        @keyframes fadeInSlide {
-            from { opacity: 0; transform: translateY(-10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
+        @keyframes fadeInSlide { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
         .anim-panel { animation: fadeInSlide 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
         .hidden { display: none !important; }
         
@@ -79,9 +83,89 @@
         .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
         .legend-item:last-child { margin-bottom: 0; }
         .color-box { width: 12px; height: 12px; border-radius: 3px; }
+
+        /* --- Splash Screen Styles --- */
+        #splash-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #111; /* Solid dark background */
+            z-index: 9999; /* Ensure it covers everything */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 0.8s ease-out, visibility 0.8s ease-out;
+        }
+
+        .splash-content {
+            text-align: center;
+            animation: popIn 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        .splash-title {
+            font-size: 3.5em;
+            font-weight: bold;
+            color: #fff;
+            letter-spacing: 4px;
+            margin-bottom: 10px;
+        }
+
+        .splash-subtitle {
+            color: #888;
+            font-size: 0.9em;
+            letter-spacing: 3px;
+            margin-bottom: 30px;
+        }
+
+        /* Loading Bar Animation */
+        .loading-bar {
+            width: 250px;
+            height: 4px;
+            background: #333;
+            margin: 0 auto;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .loading-progress {
+            width: 0%;
+            height: 100%;
+            background: #149c4c;
+            animation: loadProgress 1.5s ease-in-out forwards;
+        }
+
+        /* Splash Animations */
+        @keyframes popIn {
+            0% { opacity: 0; transform: scale(0.8); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        @keyframes loadProgress {
+            0% { width: 0%; }
+            50% { width: 70%; }
+            100% { width: 100%; }
+        }
+
+        /* Class added by JS to trigger the fade */
+        .fade-out {
+            opacity: 0 !important;
+            visibility: hidden !important;
+        }
     </style>
 </head>
 <body>
+
+<div id="splash-screen">
+    <div class="splash-content">
+        <div class="splash-title">AMR<span style="color: #149c4c;">PRO MAX</span></div>
+        <div class="splash-subtitle">INITIALIZING SYSTEM...</div>
+        <div class="loading-bar">
+            <div class="loading-progress"></div>
+        </div>
+    </div>
+</div>
 
 <div class="container">
     <div class="header-status">
@@ -119,6 +203,22 @@
             </div>
 
             <div id="manualSection" class="hidden">
+                <div class="anim-panel" style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #333; text-align: center;">
+                    <label for="speedSlider" style="color: #888; font-size: 0.8em; text-transform: uppercase; letter-spacing: 1px;">
+                        Max Teleop Speed: <span id="speedValue" style="color: #149c4c; font-weight: bold; font-family: monospace; font-size: 1.2em;">0.5</span> m/s
+                    </label>
+                    <input type="range" id="speedSlider" min="0.1" max="1.5" step="0.1" value="0.5" 
+                           oninput="document.getElementById('speedValue').innerText = parseFloat(this.value).toFixed(1)">
+                </div>
+
+                <div class="anim-panel" style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #333; text-align: center;">
+                    <label for="speedSlider" style="color: #888; font-size: 0.8em; text-transform: uppercase; letter-spacing: 1px;">
+                        Max Teleop Speed: <span id="speedValue" style="color: #149c4c; font-weight: bold; font-family: monospace; font-size: 1.2em;">0.5</span> m/s
+                    </label>
+                    <input type="range" id="speedSlider" min="0.1" max="1.5" step="0.1" value="0.5" 
+                        oninput="document.getElementById('speedValue').innerText = parseFloat(this.value).toFixed(1)">
+                    </div>
+
                 <div class="drive-controls anim-panel">
                     <div></div><button onmousedown="startDrive(1, 0)" onmouseup="stopDrive()" onmouseleave="stopDrive()">W</button><div></div>
                     <button onmousedown="startDrive(0, 1.0)" onmouseup="stopDrive()" onmouseleave="stopDrive()">A</button>
@@ -152,19 +252,15 @@
                 <div class="anim-panel" style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #333;">
                     <p style="font-size: 0.75em; color: #888; margin: 0 0 8px 0; text-transform: uppercase; letter-spacing: 0.5px;">Select Tracking Target</p>
                     
-                    <!-- Dropdown List pentru Selectia Tintei -->
                     <select id="targetSelect" style="background: #0b0b0b; color: #149c4c; border: 1px solid #444; padding: 10px; border-radius: 6px; font-weight: bold; width: 100%; box-sizing: border-box; margin-bottom: 15px; cursor: pointer; outline: none;">
                         <option value="human">Human (Person)</option>
                         <option value="ball">Sports Ball</option>
                     </select>
 
-                    <!-- Containerul Video (Aspect ratio 4:3) -->
                     <div id="video-container" style="width: 100%; aspect-ratio: 4/3; background: #000; border: 1px solid #444; border-radius: 6px; position: relative; overflow: hidden; display: flex; flex-direction: column;">
-                        <!-- Partea de sus a camerei (cum e in poza ta) -->
                         <div style="flex: 1; background: #000; position: relative;">
                             <span style="color: #0000ff; font-family: monospace; font-size: 1.2em; font-weight: bold; position: absolute; top: 15px; left: 15px;">Waiting for command...</span>
                         </div>
-                        <!-- Partea de jos a camerei (gradientul gri din poza ta) -->
                         <div style="flex: 1; background: linear-gradient(to bottom, #cccccc, #eeeeee);"></div>
                     </div>
                 </div>
@@ -178,7 +274,7 @@
     const ros = new ROSLIB.Ros({ url: 'ws://' + window.location.hostname + ':9090' });
     
     // Publishers
-    const cmdVelPub = new ROSLIB.Topic({ ros: ros, name: '/cmd_vel', messageType: 'geometry_msgs/msg/Twist' });
+    const cmdVelPub = new ROSLIB.Topic({ ros: ros, name: '/cmd_vel_teleop', messageType: 'geometry_msgs/msg/Twist' });    
     const uiModePub = new ROSLIB.Topic({ ros: ros, name: '/ui/mode/absolute', messageType: 'std_msgs/msg/String' });
     const uiGoalPub = new ROSLIB.Topic({ ros: ros, name: '/ui/nav_goal', messageType: 'geometry_msgs/msg/PoseStamped' });
 
@@ -187,7 +283,7 @@
     // Variabile pentru Interactivitatea Hartii
     let isTrackingRobot = true;
     let interactionTimer = null;
-    const DEFAULT_ZOOM = 45; // Pixeli per metru (ajustează dacă vrei să fie mai aproape/departe)
+    const DEFAULT_ZOOM = 45; // Pixeli per metru
 
     ros.on('connection', () => {
         document.getElementById('connIndicator').className = 'connection-indicator connected';
@@ -200,17 +296,28 @@
         document.getElementById('connText').textContent = 'DISCONNECTED';
     });
 
-    // Funcția care resetează timer-ul de interacțiune
+    // --- Splash Screen Logic ---
+    window.addEventListener('load', () => {
+        // Wait 1.8 seconds (giving the 1.5s CSS bar time to finish) before fading out
+        setTimeout(() => {
+            const splash = document.getElementById('splash-screen');
+            if (splash) {
+                splash.classList.add('fade-out');
+                // Remove from DOM entirely after the fade transition (0.8s) completes
+                setTimeout(() => splash.remove(), 800);
+            }
+        }, 1800);
+    });
+
     function triggerMapInteraction() {
         isTrackingRobot = false;
         clearTimeout(interactionTimer);
         
         interactionTimer = setTimeout(() => {
-            isTrackingRobot = true; // Revenim la urmărirea robotului
-            // Resetăm și zoom-ul la valoarea de bază
+            isTrackingRobot = true;
             viewer.scene.scaleX = DEFAULT_ZOOM;
             viewer.scene.scaleY = DEFAULT_ZOOM;
-        }, 5000); // 5 secunde de inactivitate
+        }, 5000);
     }
 
     function initMap() {
@@ -238,8 +345,6 @@
                 viewer.scene.__initialized = true;
             }
 
-            // Dacă suntem în MAPPING și SLAM-ul dă resize la hartă, 
-            // forțăm o re-centrare imediată folosind ultima poziție a robotului
             if (document.getElementById('currentMode').innerText === 'MAPPING' && isTrackingRobot) {
                 const viewWidth = document.getElementById('map-container').clientWidth;
                 const viewHeight = 400;
@@ -251,22 +356,14 @@
             }
         });
 
-        // ----------------------------------------------------
-        // DESENARE ROBOT CUSTOM (pentru claritate maximă)
-        // ----------------------------------------------------
         robotMarker = new createjs.Shape();
-        robotMarker.graphics.beginFill('#333333').drawRoundRect(-0.15, 0.18, 0.3, 0.1, 0.02); // Roata stanga
-        robotMarker.graphics.beginFill('#333333').drawRoundRect(-0.15, -0.28, 0.3, 0.1, 0.02); // Roata dreapta
-        robotMarker.graphics.setStrokeStyle(0.03).beginStroke('#ffffff').beginFill('#ff3333').drawCircle(0, 0, 0.22); // Corp
-        robotMarker.graphics.beginFill('#ffffff').moveTo(0.05, -0.15).lineTo(0.35, 0).lineTo(0.05, 0.15).closePath(); // Săgeata Față
+        robotMarker.graphics.beginFill('#333333').drawRoundRect(-0.15, 0.18, 0.3, 0.1, 0.02); 
+        robotMarker.graphics.beginFill('#333333').drawRoundRect(-0.15, -0.28, 0.3, 0.1, 0.02); 
+        robotMarker.graphics.setStrokeStyle(0.03).beginStroke('#ffffff').beginFill('#ff3333').drawCircle(0, 0, 0.22); 
+        robotMarker.graphics.beginFill('#ffffff').moveTo(0.05, -0.15).lineTo(0.35, 0).lineTo(0.05, 0.15).closePath(); 
         viewer.scene.addChild(robotMarker);
 
-        // ----------------------------------------------------
-        // ACTUALIZARE ODOMETRIE & AUTO-TRACKING
-        // ----------------------------------------------------
         const odomSub = new ROSLIB.Topic({ ros: ros, name: '/odom_nav2', messageType: 'nav_msgs/msg/Odometry' });
-        
-        // Adăugăm o variabilă care să rețină ultima poziție cunoscută
         let lastRobotPose = { x: 0, y: 0, yaw: 0 };
 
         odomSub.subscribe((msg) => {
@@ -281,39 +378,30 @@
             document.getElementById('posY').innerText = p.y.toFixed(2);
             document.getElementById('posYaw').innerText = (lastRobotPose.yaw * 180 / Math.PI).toFixed(1) + '°';
 
-            // Actualizăm markerul (valabil pentru ambele moduri)
             robotMarker.x = p.x;
             robotMarker.y = -p.y; 
             robotMarker.rotation = -lastRobotPose.yaw * (180 / Math.PI);
 
-            // AUTO-TRACKING LOGIC
             if (isTrackingRobot) {
                 const currentMode = document.getElementById('currentMode').innerText;
                 const viewWidth = document.getElementById('map-container').clientWidth;
                 const viewHeight = 400;
 
                 if (currentMode === 'MAPPING') {
-                    // În modul MAPPING, SLAM-ul schimbă originea hărții constant. 
-                    // Trebuie să ținem cont de 'pose'-ul hărții trimis de server
                     if(mapClient.currentGrid && mapClient.currentGrid.pose) {
                          const mapOffsetX = mapClient.currentGrid.pose.position.x;
                          const mapOffsetY = mapClient.currentGrid.pose.position.y;
                          
-                         // Calcul mai complex pentru a menține robotul pe centru chiar și când harta se dilată
                          viewer.scene.x = (viewWidth / 2) - ((p.x - mapOffsetX) * viewer.scene.scaleX);
                          viewer.scene.y = (viewHeight / 2) - (-(p.y - mapOffsetY) * viewer.scene.scaleY);
                     }
                 } else {
-                    // Modul NORMAL de navigare (Harta e fixă)
                     viewer.scene.x = (viewWidth / 2) - (p.x * viewer.scene.scaleX);
                     viewer.scene.y = (viewHeight / 2) - (-p.y * viewer.scene.scaleY);
                 }
             }
         });
 
-        // ----------------------------------------------------
-        // INTERACTIVITATE: DRAG / PAN / CLICK
-        // ----------------------------------------------------
         let isDragging = false;
         let lastPanX = 0, lastPanY = 0;
         let mouseDownX = 0, mouseDownY = 0;
@@ -324,7 +412,7 @@
             lastPanY = event.stageY;
             mouseDownX = event.stageX;
             mouseDownY = event.stageY;
-            triggerMapInteraction(); // Utilizatorul a atins harta
+            triggerMapInteraction();
         });
 
         viewer.scene.addEventListener('stagemousemove', (event) => {
@@ -335,16 +423,14 @@
                 viewer.scene.y += dy;
                 lastPanX = event.stageX;
                 lastPanY = event.stageY;
-                triggerMapInteraction(); // Ținem timer-ul treaz cât mută harta
+                triggerMapInteraction(); 
             }
         });
 
         viewer.scene.addEventListener('stagemouseup', (event) => {
             isDragging = false;
-            // Distanța dintre locul unde a pus mouse-ul și unde l-a ridicat
             const moveDist = Math.hypot(event.stageX - mouseDownX, event.stageY - mouseDownY);
 
-            // Dacă s-a mișcat mai puțin de 5 pixeli, a fost un CLICK, nu un DRAG
             if (moveDist < 5) {
                 if (document.getElementById('currentMode').innerText === 'NAVIGATION') {
                     const pos = viewer.scene.globalToRos(event.stageX, event.stageY);
@@ -353,21 +439,16 @@
             }
         });
 
-        // ----------------------------------------------------
-        // INTERACTIVITATE: SCROLL TO ZOOM
-        // ----------------------------------------------------
         mapContainer.addEventListener('wheel', (event) => {
-            event.preventDefault(); // Oprește scroll-ul paginii web
+            event.preventDefault();
             triggerMapInteraction(); 
 
             const zoomFactor = event.deltaY > 0 ? 0.85 : 1.15;
             const oldScale = viewer.scene.scaleX;
             const newScale = oldScale * zoomFactor;
 
-            // Limite de zoom
             if (newScale < 10 || newScale > 200) return;
 
-            // Logica matematică pentru a face zoom fix spre cursorul mouse-ului
             const rect = mapContainer.getBoundingClientRect();
             const stageX = event.clientX - rect.left;
             const stageY = event.clientY - rect.top;
@@ -379,8 +460,6 @@
             viewer.scene.scaleY = newScale;
         });
     }
-
-    // --- Funcțiile UI / ROS Rămân Identice ---
 
     function updateInterlocks(mode) {
         const btns = {
@@ -403,15 +482,14 @@
     }
 
     function setMode(mode) {
-        // UI toggles with animation handling
         const isManualOrMapping = (mode === 'MANUAL' || mode === 'MAPPING');
         const isNavigating = (mode === 'NAVIGATION');
         const isMapping = (mode === 'MAPPING');
-        const isFollowing = (mode === 'FOLLOWING'); // Am adăugat variabila nouă
+        const isFollowing = (mode === 'FOLLOWING');
 
         document.getElementById('manualSection').classList.toggle('hidden', !isManualOrMapping);
         document.getElementById('navSection').classList.toggle('hidden', !isNavigating);
-        document.getElementById('followSection').classList.toggle('hidden', !isFollowing); // Afișăm panoul YOLO
+        document.getElementById('followSection').classList.toggle('hidden', !isFollowing);
         
         document.getElementById('btnStartSlam').classList.toggle('hidden', isMapping);
         document.getElementById('btnStopSlam').classList.toggle('hidden', !isMapping);
@@ -419,19 +497,44 @@
         const modeMsg = new ROSLIB.Message({ data: mode });
         uiModePub.publish(modeMsg);
     }
-
+    
     let driveInterval = null;
-    function startDrive(lin, ang) {
+
+    function startDrive(base_lin, base_ang) {
         if (driveInterval) return;
-        const msg = new ROSLIB.Message({ linear: {x: lin, y:0, z:0}, angular: {x:0, y:0, z:ang} });
-        cmdVelPub.publish(msg);
-        driveInterval = setInterval(() => cmdVelPub.publish(msg), 100);
+        
+        // Define the publisher loop
+        const publishSpeed = () => {
+            // Get the live value from the slider ID "speedSlider"
+            const speedScale = parseFloat(document.getElementById('speedSlider').value);
+            
+            // Calculate scaled velocities
+            const scaledLin = base_lin * speedScale;
+            const scaledAng = base_ang * speedScale;
+            
+            const msg = new ROSLIB.Message({ 
+                linear: {x: scaledLin, y:0, z:0}, 
+                angular: {x:0, y:0, z:scaledAng} 
+            });
+            
+            cmdVelPub.publish(msg);
+        };
+
+        // Execute immediately on press
+        publishSpeed();
+        
+        // Loop at 10Hz to keep the stream alive
+        driveInterval = setInterval(publishSpeed, 100);
     }
 
     function stopDrive() {
         clearInterval(driveInterval);
         driveInterval = null;
-        cmdVelPub.publish({ linear: {x:0, y:0, z:0}, angular: {x:0, y:0, z:0} });
+        // Send a zero-velocity command to ensure the robot stops when button is released
+        cmdVelPub.publish({ 
+            linear: {x:0, y:0, z:0}, 
+            angular: {x:0, y:0, z:0} 
+        });
     }
 
     function sendGoal() {

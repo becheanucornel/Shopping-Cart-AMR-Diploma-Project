@@ -1,723 +1,140 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
-     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
-     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
-<robot
-  name="URDF_RobotDiploma">
+<robot name="URDF_RobotDiploma">
 
-  <!-- ==================================================================== -->
-  <!-- Baza imaginara lipita de podea (Z=0) pentru ROS Nav2 / Odometry      -->
-  <!-- ==================================================================== -->
-  <link name="base_footprint"/>
+  <link name="custom_base_footprint"/>
 
-  <!-- Legatura fixa dintre podea si centrul sasiului (base_link) -->
-  <!-- Am pus un Z de 0.05 m ca exemplu (5 cm garda la sol). Ajusteaza aceasta valoare 
-       in functie de inaltimea reala a originii base_link fata de sol in design-ul tau CAD -->
   <joint name="base_footprint_joint" type="fixed">
-    <parent link="base_footprint"/>
-    <child link="base_link"/>
+    <parent link="custom_base_footprint"/>
+    <child link="custom_base_link"/>
     <origin xyz="0 0 0.05" rpy="0 0 0"/> 
   </joint>
-  <!-- ==================================================================== -->
 
-  <link
-    name="base_link">
-    <inertial>
-      <origin
-        xyz="-0.026463 3.6566E-05 0.03414"
-        rpy="0 0 0" />
-      <mass
-        value="7.4355" />
-      <inertia
-        ixx="0.056484"
-        ixy="6.4615E-06"
-        ixz="-5.87E-06"
-        iyy="0.060533"
-        iyz="9.8272E-07"
-        izz="0.11039" />
-    </inertial>
+  <link name="custom_base_link">
     <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
-        <mesh
-          filename="package://URDF_RobotDiploma/meshes/base_link.STL" />
+        <mesh filename="package://URDF_RobotDiploma/meshes/base_link.STL" />
       </geometry>
-      <material
-        name="">
-        <color
-          rgba="0.79216 0.81961 0.93333 1" />
-      </material>
+      <material name=""><color rgba="0.79 0.82 0.93 1" /></material>
     </visual>
     <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
+      <origin xyz="0 0 0.1" rpy="0 0 0" />
       <geometry>
-        <mesh
-          filename="package://URDF_RobotDiploma/meshes/base_link.STL" />
+        <box size="0.4 0.44 0.2"/> 
       </geometry>
     </collision>
   </link>
-  <link
-    name="left_wheel">
-    <inertial>
-      <origin
-        xyz="1.11022302462516E-16 0 0.0199910644703378"
-        rpy="0 0 0" />
-      <mass
-        value="0.533369044032681" />
-      <inertia
-        ixx="0.000644318336040828"
-        ixy="-1.64067035199278E-20"
-        ixz="7.27107140820734E-19"
-        iyy="0.000644318336040828"
-        iyz="-1.48748557576194E-20"
-        izz="0.00113949034885603" />
-    </inertial>
+
+  <link name="left_wheel">
     <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://URDF_RobotDiploma/meshes/left_wheel.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
-      </material>
+      <geometry><mesh filename="package://URDF_RobotDiploma/meshes/left_wheel.STL" /></geometry>
+      <material name=""><color rgba="0.79 0.82 0.93 1" /></material>
     </visual>
     <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://URDF_RobotDiploma/meshes/left_wheel.STL" />
-      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry><cylinder radius="0.067" length="0.04"/></geometry>
     </collision>
   </link>
-  <joint
-    name="leftwheel"
-    type="continuous">
-    <origin
-      xyz="0.00033999 0.194 0.013"
-      rpy="1.5708 0 0" />
-    <parent
-      link="base_link" />
-    <child
-      link="left_wheel" />
-    <axis
-      xyz="0 0 -1" />
-    <limit
-      effort="10"
-      velocity="10" />
-    <dynamics
-      damping="0.1"
-      friction="0.1" />
+
+  <joint name="leftwheel" type="continuous">
+    <origin xyz="0.00033999 0.194 0.013" rpy="1.5708 0 0" />
+    <parent link="custom_base_link" />
+    <child link="left_wheel" />
+    <axis xyz="0 0 -1" />
   </joint>
-  <link
-    name="right_wheel">
-    <inertial>
-      <origin
-        xyz="-1.11022302462516E-16 -1.11022302462516E-16 -0.0199910644703378"
-        rpy="0 0 0" />
-      <mass
-        value="0.533369044032682" />
-      <inertia
-        ixx="0.000644318336040828"
-        ixy="3.38766232093726E-20"
-        ixz="-3.58450363187393E-20"
-        iyy="0.000644318336040828"
-        iyz="2.15962577337496E-19"
-        izz="0.00113949034885603" />
-    </inertial>
+
+  <link name="right_wheel">
     <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://URDF_RobotDiploma/meshes/right_wheel.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
-      </material>
+      <geometry><mesh filename="package://URDF_RobotDiploma/meshes/right_wheel.STL" /></geometry>
+      <material name=""><color rgba="0.79 0.82 0.93 1" /></material>
     </visual>
     <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://URDF_RobotDiploma/meshes/right_wheel.STL" />
-      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry><cylinder radius="0.067" length="0.04"/></geometry>
     </collision>
   </link>
-  <joint
-    name="rightwheel"
-    type="continuous">
-    <origin
-      xyz="0.00045567 -0.194 0.013"
-      rpy="1.5708 0 0" />
-    <parent
-      link="base_link" />
-    <child
-      link="right_wheel" />
-    <axis
-      xyz="0 0 1" />
-    <limit
-      effort="10"
-      velocity="10" />
-    <dynamics
-      damping="0.1"
-      friction="0.1" />
+
+  <joint name="rightwheel" type="continuous">
+    <origin xyz="0.00045567 -0.194 0.013" rpy="1.5708 0 0" />
+    <parent link="custom_base_link" />
+    <child link="right_wheel" />
+    <axis xyz="0 0 1" />
   </joint>
-  <link
-    name="lidar_front_right">
-    <inertial>
-      <origin
-        xyz="-7.74830551633077E-05 4.36272751258571E-08 -0.00493051065766359"
-        rpy="0 0 0" />
-      <mass
-        value="0.102513137152156" />
-      <inertia
-        ixx="3.50509943398837E-05"
-        ixy="-8.9269734957859E-11"
-        ixz="-1.05223236289025E-07"
-        iyy="3.53118195431653E-05"
-        iyz="1.21196190243834E-11"
-        izz="4.34973495030288E-05" />
-    </inertial>
+
+  <link name="front_caster">
     <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://URDF_RobotDiploma/meshes/lidar_front_right.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
-      </material>
+      <geometry><mesh filename="package://URDF_RobotDiploma/meshes/front_caster.STL" /></geometry>
     </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://URDF_RobotDiploma/meshes/lidar_front_right.STL" />
-      </geometry>
-    </collision>
   </link>
-  <joint
-    name="lidar1"
-    type="fixed">
-    <origin
-      xyz="0.143897827735137 -0.1185 0.0232921469155075"
-      rpy="0 0 0" />
-    <parent
-      link="base_link" />
-    <child
-      link="lidar_front_right" />
-    <axis
-      xyz="0 0 0" />
+  <joint name="frontcasterjoint" type="fixed">
+    <origin xyz="0.1283 0 -0.0243" rpy="0 0 0" />
+    <parent link="custom_base_link" />
+    <child link="front_caster" />
   </joint>
-  <link
-    name="lidar_front_left">
-    <inertial>
-      <origin
-        xyz="-7.74812884845044E-05 4.4920380526392E-08 -0.00493050947644635"
-        rpy="0 0 0" />
-      <mass
-        value="0.102513124786789" />
-      <inertia
-        ixx="3.50509909260937E-05"
-        ixy="-8.64017578840017E-11"
-        ixz="-1.05221381680785E-07"
-        iyy="3.5311813886734E-05"
-        iyz="1.35770953614644E-11"
-        izz="4.34973430530754E-05" />
-    </inertial>
+
+  <link name="back_caster">
     <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://URDF_RobotDiploma/meshes/lidar_front_left.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
-      </material>
+      <geometry><mesh filename="package://URDF_RobotDiploma/meshes/back_caster.STL" /></geometry>
     </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://URDF_RobotDiploma/meshes/lidar_front_left.STL" />
-      </geometry>
-    </collision>
   </link>
-  <joint
-    name="lidar2"
-    type="fixed">
-    <origin
-      xyz="0.1439 0.1185 0.023292"
-      rpy="0 0 0" />
-    <parent
-      link="base_link" />
-    <child
-      link="lidar_front_left" />
-    <axis
-      xyz="0 0 0" />
+  <joint name="backcasterjoint" type="fixed">
+    <origin xyz="-0.1267 0 -0.0243" rpy="0 0 0" />
+    <parent link="custom_base_link" />
+    <child link="back_caster" />
   </joint>
-  <link
-    name="lidar_back_left">
-    <inertial>
-      <origin
-        xyz="7.7484E-05 -4.3788E-08 -0.0049305"
-        rpy="0 0 0" />
-      <mass
-        value="0.10251" />
-      <inertia
-        ixx="3.5051E-05"
-        ixy="-8.9754E-11"
-        ixz="1.0522E-07"
-        iyy="3.5312E-05"
-        iyz="-1.224E-11"
-        izz="4.3497E-05" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://URDF_RobotDiploma/meshes/lidar_back_left.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="0.79216 0.81961 0.93333 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://URDF_RobotDiploma/meshes/lidar_back_left.STL" />
-      </geometry>
-    </collision>
+
+  <link name="lidar_front_right">
+    <visual><geometry><mesh filename="package://URDF_RobotDiploma/meshes/lidar_front_right.STL" /></geometry></visual>
   </link>
-  <joint
-    name="lidar3"
-    type="fixed">
-    <origin
-      xyz="-0.143102172264863 0.1185 0.0232921469155075"
-      rpy="0 0 0" />
-    <parent
-      link="base_link" />
-    <child
-      link="lidar_back_left" />
-    <axis
-      xyz="0 0 1" />
+  <joint name="lidar1" type="fixed">
+    <origin xyz="0.1438 -0.1185 0.0232" rpy="0 0 0" />
+    <parent link="custom_base_link" />
+    <child link="lidar_front_right" />
   </joint>
-  <link
-    name="lidar_back_right">
-    <inertial>
-      <origin
-        xyz="7.74816511960319E-05 -4.48238792749578E-08 -0.00493050937436246"
-        rpy="0 0 0" />
-      <mass
-        value="0.102513123915553" />
-      <inertia
-        ixx="3.50509905015254E-05"
-        ixy="-8.61714782601071E-11"
-        ixz="1.05221803946414E-07"
-        iyy="3.5311813608589E-05"
-        iyz="-1.34392786961218E-11"
-        izz="4.34973426121678E-05" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://URDF_RobotDiploma/meshes/lidar_back_right.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://URDF_RobotDiploma/meshes/lidar_back_right.STL" />
-      </geometry>
-    </collision>
+
+  <link name="lidar_front_left">
+    <visual><geometry><mesh filename="package://URDF_RobotDiploma/meshes/lidar_front_left.STL" /></geometry></visual>
   </link>
-  <joint
-    name="lidar4"
-    type="fixed">
-    <origin
-      xyz="-0.1431 -0.1185 0.023292"
-      rpy="0 0 0" />
-    <parent
-      link="base_link" />
-    <child
-      link="lidar_back_right" />
-    <axis
-      xyz="0 0 0" />
+  <joint name="lidar2" type="fixed">
+    <origin xyz="0.1439 0.1185 0.0232" rpy="0 0 0" />
+    <parent link="custom_base_link" />
+    <child link="lidar_front_left" />
   </joint>
-  <link
-    name="front_caster">
-    <inertial>
-      <origin
-        xyz="-0.0045617762596567 0.000353503122097587 -0.00441295970486399"
-        rpy="0 0 0" />
-      <mass
-        value="0.00259129992796221" />
-      <inertia
-        ixx="2.35188536783204E-07"
-        ixy="-8.1921873376741E-10"
-        ixz="-3.72180847716287E-08"
-        iyy="1.99405614935345E-07"
-        iyz="-1.3892909025978E-09"
-        izz="2.91060712312761E-07" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://URDF_RobotDiploma/meshes/front_caster.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="0.745098039215686 0.737254901960784 0.729411764705882 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://URDF_RobotDiploma/meshes/front_caster.STL" />
-      </geometry>
-    </collision>
+
+  <link name="lidar_back_left">
+    <visual><geometry><mesh filename="package://URDF_RobotDiploma/meshes/lidar_back_left.STL" /></geometry></visual>
   </link>
-  <joint
-    name="frontcasterjoint"
-    type="continuous">
-    <origin
-      xyz="0.128305917608629 3.08857392976591E-05 -0.024391789843072"
-      rpy="0 0 0" />
-    <parent
-      link="base_link" />
-    <child
-      link="front_caster" />
-    <axis
-      xyz="0 0 1" />
-    <limit
-      effort="10"
-      velocity="10" />
+  <joint name="lidar3" type="fixed">
+    <origin xyz="-0.1431 0.1185 0.0232" rpy="0 0 0" />
+    <parent link="custom_base_link" />
+    <child link="lidar_back_left" />
   </joint>
-  <link
-    name="front_caster_wheel">
-    <inertial>
-      <origin
-        xyz="4.44089209850063E-16 1.11022302462516E-16 -0.0104000000000004"
-        rpy="0 0 0" />
-      <mass
-        value="0.00382605152202009" />
-      <inertia
-        ixx="2.05611663304469E-07"
-        ixy="-2.64439301940183E-25"
-        ixz="2.24565568668936E-13"
-        iyy="2.05611663304471E-07"
-        iyz="3.25482519974293E-23"
-        izz="3.26788977058395E-07" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://URDF_RobotDiploma/meshes/front_caster_wheel.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="0.749019607843137 0.749019607843137 0.749019607843137 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://URDF_RobotDiploma/meshes/front_caster_wheel.STL" />
-      </geometry>
-    </collision>
+
+  <link name="lidar_back_right">
+    <visual><geometry><mesh filename="package://URDF_RobotDiploma/meshes/lidar_back_right.STL" /></geometry></visual>
   </link>
-  <joint
-    name="frontcasterwheeljoint"
-    type="continuous">
-    <origin
-      xyz="-0.012 -0.0104 -0.017111"
-      rpy="1.5708 0 0" />
-    <parent
-      link="front_caster" />
-    <child
-      link="front_caster_wheel" />
-    <axis
-      xyz="0 0 -1" />
-    <limit
-      effort="10"
-      velocity="10" />
+  <joint name="lidar4" type="fixed">
+    <origin xyz="-0.1431 -0.1185 0.0232" rpy="0 0 0" />
+    <parent link="custom_base_link" />
+    <child link="lidar_back_right" />
   </joint>
-  <link
-    name="back_caster">
-    <inertial>
-      <origin
-        xyz="-0.00456177625965681 0.000353503122097587 -0.00441295970486411"
-        rpy="0 0 0" />
-      <mass
-        value="0.00259129992796193" />
-      <inertia
-        ixx="2.35188536783186E-07"
-        ixy="-8.19218733770854E-10"
-        ixz="-3.72180847716279E-08"
-        iyy="1.99405614935332E-07"
-        iyz="-1.38929090260133E-09"
-        izz="2.91060712312735E-07" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://URDF_RobotDiploma/meshes/back_caster.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="0.745098039215686 0.737254901960784 0.729411764705882 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://URDF_RobotDiploma/meshes/back_caster.STL" />
-      </geometry>
-    </collision>
+
+  <link name="top_link">
+    <visual><geometry><mesh filename="package://URDF_RobotDiploma/meshes/top_link.STL" /></geometry></visual>
   </link>
-  <joint
-    name="backcasterjoint"
-    type="continuous">
-    <origin
-      xyz="-0.12673 -0.0024611 -0.024392"
-      rpy="0 0 0" />
-    <parent
-      link="base_link" />
-    <child
-      link="back_caster" />
-    <axis
-      xyz="0 0 1" />
-    <limit
-      effort="10"
-      velocity="10" />
+  <joint name="toplinkjoint" type="fixed">
+    <origin xyz="0.1179 0 0.065" rpy="0 0 0" />
+    <parent link="custom_base_link" />
+    <child link="top_link" />
   </joint>
-  <link
-    name="back_caster_wheel">
-    <inertial>
-      <origin
-        xyz="2.22044604925031E-16 0 -0.0103999999999997"
-        rpy="0 0 0" />
-      <mass
-        value="0.00382605152201998" />
-      <inertia
-        ixx="2.05611663304462E-07"
-        ixy="-2.64439302093272E-25"
-        ixz="2.24565572043494E-13"
-        iyy="2.05611663304462E-07"
-        iyz="-5.06379863955948E-23"
-        izz="3.26788977058375E-07" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://URDF_RobotDiploma/meshes/back_caster_wheel.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="0.749019607843137 0.749019607843137 0.749019607843137 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://URDF_RobotDiploma/meshes/back_caster_wheel.STL" />
-      </geometry>
-    </collision>
+
+  <link name="camera_link">
+    <visual><geometry><mesh filename="package://URDF_RobotDiploma/meshes/camera_link.STL" /></geometry></visual>
   </link>
-  <joint
-    name="backcasterwheeljoint"
-    type="continuous">
-    <origin
-      xyz="-0.012 -0.0104 -0.017111"
-      rpy="1.5708 0 0" />
-    <parent
-      link="back_caster" />
-    <child
-      link="back_caster_wheel" />
-    <axis
-      xyz="0 0 -1" />
-    <limit
-      effort="10"
-      velocity="10" />
+  <joint name="camera_joint" type="fixed">
+    <origin xyz="0.0324 -0.002 0.36" rpy="1.5708 0 1.5708" />
+    <parent link="top_link" />
+    <child link="camera_link" />
   </joint>
-  <link
-    name="top_link">
-    <inertial>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <mass
-        value="0" />
-      <inertia
-        ixx="0"
-        ixy="0"
-        ixz="0"
-        iyy="0"
-        iyz="0"
-        izz="0" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://URDF_RobotDiploma/meshes/top_link.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="1 1 1 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://URDF_RobotDiploma/meshes/top_link.STL" />
-      </geometry>
-    </collision>
-  </link>
-  <joint
-    name="toplinkjoint"
-    type="fixed">
-    <origin
-      xyz="0.11794 0 0.065"
-      rpy="0 0 0" />
-    <parent
-      link="base_link" />
-    <child
-      link="top_link" />
-    <axis
-      xyz="0 0 0" />
-  </joint>
-  <link
-    name="camera_link">
-    <inertial>
-      <origin
-        xyz="0.0019986909434444 -0.0100379683786158 -0.0212268282854221"
-        rpy="0 0 0" />
-      <mass
-        value="0.0613007198991268" />
-      <inertia
-        ixx="4.12312527454039E-05"
-        ixy="-1.80187766109621E-08"
-        ixz="-3.26145146771865E-08"
-        iyy="3.37562697576285E-05"
-        iyz="1.77912092753186E-07"
-        izz="4.56203572708566E-05" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://URDF_RobotDiploma/meshes/camera_link.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://URDF_RobotDiploma/meshes/camera_link.STL" />
-      </geometry>
-    </collision>
-  </link>
-  <joint
-    name="camera_joint"
-    type="fixed">
-    <origin
-      xyz="0.03246 -0.002 0.36"
-      rpy="1.5708 0 1.5708" />
-    <parent
-      link="top_link" />
-    <child
-      link="camera_link" />
-    <axis
-      xyz="0 0 0" />
-  </joint>
+
 </robot>

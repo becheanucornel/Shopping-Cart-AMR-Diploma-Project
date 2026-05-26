@@ -96,12 +96,17 @@ class AmrMotorNode(Node):
         self.left_motor_dir = 1
         self.right_motor_dir = 1
         
+        
         # --- Added Debounce Variables ---
         # 500,000 nanoseconds = 0.5 ms. This allows up to 2000 ticks/sec.
         # This safely filters noise while easily clearing your ~1050 ticks/sec peak.
         self.debounce_ns = 100_000 
         self.last_left_tick_time = time.perf_counter_ns()
         self.last_right_tick_time = time.perf_counter_ns()
+        self.current_linear_x = 0.0
+        self.current_angular_z = 0.0
+        self.max_accel_linear = 1.0  # meters/sec^2
+        self.max_accel_angular = 2.0 # rads/sec^2
         
         self.x = 0.0
         self.y = 0.0
@@ -181,14 +186,30 @@ class AmrMotorNode(Node):
 
     def cmd_vel_callback(self, msg):
         self.last_cmd_time = self.get_clock().now()
+        dt = 0.05 # 20Hz assumed from mode manager
 
-        # Differential Drive Kinematics
-        linear = msg.linear.x   # Forward/Back
-        angular = msg.angular.z # Left/Right rotation
+        target_linear = msg.linear.x
+        target_angular = msg.angular.z
 
-        # Mix linear and angular to get wheel speeds
-        left_speed = linear - angular
-        right_speed = linear + angular
+        # --- Linear Acceleration Ramp ---
+        if target_linear > self.current_linear_x:
+            self.current_linear_x = min(target_linear, self.current_linear_x + (self.max_accel_linear * dt))
+        elif target_linear < self.current_linear_x:
+            self.current_linear_x = max(target_linear, self.current_linear_x - (self.max_accel_linear * dt))
+
+        # --- Angular Acceleration Ramp ---
+        if target_angular > self.current_angular_z:
+            self.current_angular_z = min(target_angular, self.current_angular_z + (self.max_accel_angular * dt))
+        elif target_angular < self.current_angular_z:
+            self.current_angular_z = max(target_angular, self.current_angular_z - (self.max_accel_angular * dt))
+            
+        # --- TRUE DIFFERENTIAL DRIVE KINEMATICS ---
+        # v_left = v_linear - (v_angular * wheelbase / 2)
+        # v_right = v_linear + (v_angular * wheelbase / 2)
+        
+        wheel_track = self.L / 2.0
+        left_speed = self.current_linear_x - (self.current_angular_z * wheel_track)
+        right_speed = self.current_linear_x + (self.current_angular_z * wheel_track)
 
         # Normalize speeds to ensure we don't exceed 100% PWM while keeping the turning ratio
         max_speed = max(abs(left_speed), abs(right_speed), 1.0)

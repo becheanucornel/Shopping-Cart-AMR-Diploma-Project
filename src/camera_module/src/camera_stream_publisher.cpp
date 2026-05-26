@@ -14,8 +14,8 @@ class TestCameraStreamPublisherNode : public rclcpp::Node {
         int fps = this->declare_parameter<int>("fps", 30);
         std::string fourcc = this->declare_parameter<std::string>("fourcc", "MJPG");
 
-        cap_.open(camera_index, cv::CAP_V4L2);
-        publisher_ = this->create_publisher<sensor_msgs::msg::Image>("camera", 10);
+        std::string pipeline = "nvarguscamerasrc sensor-id=0 ! video/x-raw(memory:NVMM), width=1280, height=720, format=(string)NV12, framerate=30/1 ! nvvidconv flip-method=0 ! video/x-raw, width=640, height=480, format=(string)BGRx ! videoconvert ! video/x-raw, format=(string)BGR ! appsink";
+        cap_.open(pipeline, cv::CAP_GSTREAMER);
 
         if (!cap_.isOpened()) {
             RCLCPP_ERROR(this->get_logger(), "Could not open video stream");
