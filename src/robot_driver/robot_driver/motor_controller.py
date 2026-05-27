@@ -115,8 +115,8 @@ class AmrMotorNode(Node):
         self.last_time = self.get_clock().now()
 
         # Publishers & Broadcasters
-        self.odom_pub = self.create_publisher(Odometry, 'odom', 10)
-        #self.tf_broadcaster = TransformBroadcaster(self)
+        self.odom_pub = self.create_publisher(Odometry, 'custom_odom_topic', 10)
+        self.tf_broadcaster = TransformBroadcaster(self)
         # ---------------------------------------------
 
         self.get_logger().info("Initializing GPIO and PWM...")
@@ -159,7 +159,7 @@ class AmrMotorNode(Node):
 
         # --- Timers ---
         self.timer = self.create_timer(0.05, self.update_odometry) # 20Hz Odometry
-        #self.debug_timer = self.create_timer(1.0, self.print_debug_info) # 1Hz Tick Logger
+        £self.debug_timer = self.create_timer(1.0, self.print_debug_info) # 1Hz Tick Logger
 
         self.get_logger().info("AMR Motor Node Ready. Listening to /cmd_vel and Encoders...")
 
@@ -274,15 +274,15 @@ class AmrMotorNode(Node):
 
         self.last_time = current_time
 
-        #t = TransformStamped()
-        #t.header.stamp = current_time.to_msg()
-        #t.header.frame_id = self.odom_frame
-        #t.child_frame_id = self.base_frame
-        #t.transform.translation.x = self.x
-        #t.transform.translation.y = self.y
-        #t.transform.rotation.z = q_z
-        #t.transform.rotation.w = q_w
-        #self.tf_broadcaster.sendTransform(t)
+        t = TransformStamped()
+        t.header.stamp = current_time.to_msg()
+        t.header.frame_id = self.odom_frame
+        t.child_frame_id = self.base_frame
+        t.transform.translation.x = self.x
+        t.transform.translation.y = self.y
+        t.transform.rotation.z = q_z
+        t.transform.rotation.w = q_w
+        self.tf_broadcaster.sendTransform(t)
 
         # --- Add these two lines back in ---
         q_z = math.sin(self.theta / 2.0)

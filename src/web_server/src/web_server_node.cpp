@@ -15,8 +15,8 @@ WebServerNode::WebServerNode(const rclcpp::NodeOptions & options)
   port_ = this->get_parameter("port").as_int();
 
   this->declare_parameter("publish_odom_tf", true);
-  this->declare_parameter("odom_frame_id", "odom");
-  this->declare_parameter("base_frame_id", "base_link");
+  this->declare_parameter("odom_frame_id", "custom_odom");
+  this->declare_parameter("base_frame_id", "custom_base_link");
   publish_odom_tf_ = this->get_parameter("publish_odom_tf").as_bool();
   odom_frame_id_ = this->get_parameter("odom_frame_id").as_string();
   base_frame_id_ = this->get_parameter("base_frame_id").as_string();
@@ -53,7 +53,7 @@ WebServerNode::WebServerNode(const rclcpp::NodeOptions & options)
     "/goal_cancel", 10, std::bind(&WebServerNode::goal_cancel_callback, this, std::placeholders::_1));
   
   odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
-    "/odom", 10, std::bind(&WebServerNode::odom_callback, this, std::placeholders::_1));
+    "/custom_odom_topic", 10, std::bind(&WebServerNode::odom_callback, this, std::placeholders::_1));
   
   amcl_pose_sub_ = this->create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
     "/amcl_pose", 10, std::bind(&WebServerNode::amcl_callback, this, std::placeholders::_1));
@@ -268,7 +268,7 @@ void WebServerNode::odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg)
     initialpose_sent_ = true;
 
     RCLCPP_INFO(this->get_logger(),
-                "Published /initialpose from /odom: frame=%s x=%.3f y=%.3f",
+                "Published /initialpose from /custom_odom_topic: frame=%s x=%.3f y=%.3f",
                 init.header.frame_id.c_str(), init.pose.pose.position.x, init.pose.pose.position.y);
   }
 

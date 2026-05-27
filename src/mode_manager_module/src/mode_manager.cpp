@@ -68,7 +68,7 @@ public:
             "/cmd_vel_follow", 10, std::bind(&ModeManager::follow_cmd_callback, this, _1));
 
         odom_subscriber_ = this->create_subscription<nav_msgs::msg::Odometry>(
-            "/odom", 10, std::bind(&ModeManager::odom_callback, this, _1));
+            "/custom_odom_topic", 10, std::bind(&ModeManager::odom_callback, this, _1));
 
         ui_mode_subscriber_abs_ = this->create_subscription<std_msgs::msg::String>(
             "/ui/mode/absolute", 10, std::bind(&ModeManager::ui_mode_callback, this, _1));
