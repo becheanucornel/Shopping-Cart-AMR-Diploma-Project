@@ -1,7 +1,7 @@
 slam_toolbox:
   ros__parameters:
     # SLAM parameters
-    use_sim_time: true
+    use_sim_time: false
     odom_frame: custom_odom
     base_frame: custom_base_link
     map_frame: map

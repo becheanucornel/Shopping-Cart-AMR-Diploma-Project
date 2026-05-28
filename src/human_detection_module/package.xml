@@ -3,7 +3,7 @@
 <package format="3">
   <name>human_detection_module</name>
   <version>0.0.0</version>
-  <description>YOLOv8 C++/TensorRT Node for Follow Me AMR</description>
+  <description>YOLOv8 C++ Detection Node for Follow-Me AMR</description>
   <maintainer email="hephaestus@todo.todo">hephaestus</maintainer>
   <license>TODO: License declaration</license>
 
@@ -12,6 +12,7 @@
   <depend>rclcpp</depend>
   <depend>sensor_msgs</depend>
   <depend>geometry_msgs</depend>
+  <depend>std_srvs</depend>
   <depend>cv_bridge</depend>
   <depend>ament_index_cpp</depend>
   <depend>libopencv-dev</depend>

@@ -20,11 +20,15 @@ public:
     publisher_ = this->create_publisher<sensor_msgs::msg::Image>("camera", qos_profile);
 
     // MODIFICARE MAJORĂ 2: Adăugăm "drop=true max-buffers=1" la appsink
+    // Ensure your ROS 2 'fps' parameter is strictly set to 30 for this to work
     std::string pipeline = 
         "nvarguscamerasrc sensor-id=" + std::to_string(camera_index) + " ! "
-        "video/x-raw(memory:NVMM), width=1280, height=720, format=(string)NV12, framerate=" + std::to_string(fps) + "/1 ! "
+        // Use the maximum FOV binned mode supported by the hardware
+        "video/x-raw(memory:NVMM), width=1640, height=1232, format=(string)NV12, framerate=30/1 ! "
+        // Hardware scaling down to your 640x480 ROS parameter
         "nvvidconv flip-method=0 ! "
         "video/x-raw, width=" + std::to_string(frame_width) + ", height=" + std::to_string(frame_height) + ", format=(string)BGRx ! "
+        // Convert to standard BGR for OpenCV / YOLOv8
         "videoconvert ! video/x-raw, format=(string)BGR ! appsink drop=true max-buffers=1";
 
     // Open camera

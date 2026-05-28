@@ -1,557 +1,770 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shopping Cart Mobile Robot</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SC-AMR Control</title>
 
-    <script src="https://cdn.jsdelivr.net/npm/eventemitter2@6.4.9/lib/eventemitter2.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/easeljs@1.0.2/lib/easeljs.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/roslib@1.3.0/build/roslib.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/ros2d@0.10.0/build/ros2d.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <style>
-        body { margin: 0; padding: 20px; font-family: 'Segoe UI', sans-serif; background: radial-gradient(circle at top left, #2c2c30, #121212 80%); color: #e5e9e5; }
-        .container { max-width: 1400px; margin: 0 auto; }
-        
-        /* Header & Connection Indicator */
-        .header-status { text-align: center; margin-bottom: 20px; padding: 15px; background: rgba(30, 30, 30, 0.9); border-radius: 10px; border: 1px solid #444; display: flex; justify-content: center; align-items: center; gap: 20px; transition: all 0.3s ease;}
-        .connection-indicator { font-weight: bold; padding: 6px 16px; border-radius: 20px; font-size: 0.9em; display: flex; align-items: center; gap: 8px; letter-spacing: 1px; transition: all 0.3s ease;}
-        .status-led { width: 10px; height: 10px; border-radius: 50%; display: inline-block; transition: all 0.3s ease; }
-        
-        .connected { color: #4CAF50; background: rgba(76, 175, 80, 0.1); border: 1px solid rgba(76, 175, 80, 0.3); }
-        .connected .status-led { background: #4CAF50; box-shadow: 0 0 10px #4CAF50; }
-        
-        .disconnected { color: #f44336; background: rgba(244, 67, 54, 0.1); border: 1px solid rgba(244, 67, 54, 0.3); }
-        .disconnected .status-led { background: #f44336; box-shadow: 0 0 10px #f44336; }
-        
-        /* Layout */
-        .grid { display: grid; grid-template-columns: 1fr 400px; gap: 20px; }
-        .section { background: rgba(40, 42, 40, 0.8); padding: 25px; border-radius: 15px; border: 1px solid rgba(20, 156, 76, 0.2); box-shadow: 0 10px 30px rgba(0,0,0,0.5); transition: transform 0.3s ease, box-shadow 0.3s ease; }
-        .section:hover { box-shadow: 0 12px 35px rgba(0,0,0,0.6); border-color: rgba(20, 156, 76, 0.4); }
-        h2 { color: #149c4c; margin-top: 0; border-bottom: 2px solid rgba(20, 156, 76, 0.2); padding-bottom: 10px; text-transform: uppercase; font-size: 1.2em; letter-spacing: 1px; }
+<script src="https://cdn.jsdelivr.net/npm/eventemitter2@6.4.9/lib/eventemitter2.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/easeljs@1.0.2/lib/easeljs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/roslib@1.3.0/build/roslib.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ros2d@0.10.0/build/ros2d.min.js"></script>
 
-        /* Map Container */
-        #map-container { width: 100%; height: 400px; margin: 0 auto; background: #111; border-radius: 10px; border: 1px solid #333; overflow: hidden; cursor: crosshair; position: relative; transition: all 0.3s ease; }
-        
-        /* Status Grid */
-        .status-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 15px; }
-        .status-item { background: #0b0b0b; padding: 12px; border-radius: 8px; border-left: 3px solid #149c4c; transition: background 0.3s ease; }
-        .status-item:hover { background: #1a1a1a; }
-        .status-label { color: #888; font-size: 0.7em; text-transform: uppercase; letter-spacing: 0.5px; }
-        .status-value { color: #149c4c; font-size: 1.1em; font-weight: bold; font-family: 'Consolas', monospace; margin-top: 4px; }
+<style>
+/* ── Variables ─────────────────────────────────────────────────────────── */
+:root {
+  --bg:        #0a0c0a;
+  --bg1:       #101410;
+  --bg2:       #161c16;
+  --border:    #1e2e1e;
+  --accent:    #00e676;
+  --accent2:   #69f0ae;
+  --dim:       #2e3e2e;
+  --text:      #d0e8d0;
+  --muted:     #5a7a5a;
+  --danger:    #ff1744;
+  --warn:      #ffc400;
+  --mono:      'Share Tech Mono', monospace;
+  --sans:      'Rajdhani', sans-serif;
+  --radius:    6px;
+  --trans:     0.32s cubic-bezier(0.4, 0, 0.2, 1);
+}
 
-        /* Buttons & Controls */
-        .mode-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
-        button { background: #2a2a2a; color: #e5e9e5; border: 1px solid #555; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: bold; transition: all 0.2s ease; text-transform: uppercase; font-size: 0.85em; letter-spacing: 0.5px; }
-        button:hover:not(:disabled) { background: #3a3a3a; border-color: #149c4c; transform: translateY(-1px); }
-        button:active:not(:disabled) { transform: translateY(1px); }
-        button.active { background: #149c4c; color: #fff; border-color: #21d368; box-shadow: 0 0 15px rgba(20, 156, 76, 0.3); }
-        
-        /* Interlock Disabled State */
-        button:disabled { opacity: 0.4; cursor: not-allowed; border-color: #222; background: #1a1a1a; color: #555; box-shadow: none; transform: none; }
-        
-        /* Teleop Controls */
-        .drive-controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 200px; margin: 20px auto; }
-        .drive-controls button { aspect-ratio: 1; font-size: 1.2em; padding: 0; display: flex; justify-content: center; align-items: center; }
-        .stop-btn { background: #8b0000 !important; border-color: #ff4444 !important; color: white; }
-        .stop-btn:hover:not(:disabled) { background: #cc0000 !important; box-shadow: 0 0 12px rgba(255, 68, 68, 0.4); }
-        
-        input[type="number"] { background: #0b0b0b; color: #149c4c; border: 1px solid #444; padding: 10px; border-radius: 6px; font-weight: bold; width: 100%; box-sizing: border-box; transition: border-color 0.3s ease; }
-        input[type="number"]:focus { outline: none; border-color: #149c4c; }
+/* ── Reset & Base ──────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); }
+body { font-family: var(--sans); color: var(--text); }
 
-        /* Custom Speed Slider Styles */
-        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
-        input[type=range]:focus { outline: none; }
-        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 20px; width: 20px; border-radius: 50%; background: #149c4c; cursor: pointer; margin-top: -6px; box-shadow: 0 0 10px rgba(20, 156, 76, 0.5); transition: transform 0.1s; }
-        input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); }
-        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 8px; cursor: pointer; background: #333; border-radius: 4px; border: 1px solid #444; }
-        
-        /* SLAM Panel */
-        .slam-box { margin-top: 20px; padding: 15px; background: rgba(255, 165, 0, 0.05); border: 1px solid rgba(255, 165, 0, 0.3); border-radius: 10px; text-align: center; }
-        .btn-start-slam { background: #cc8400; color: #fff; border-color: orange; width: 100%; margin-top: 10px; }
-        .btn-start-slam:hover:not(:disabled) { background: #e69500; border-color: #ffb732; box-shadow: 0 0 15px rgba(255, 165, 0, 0.3); }
-        .btn-stop-slam { background: #149c4c; color: white; border-color: #21d368; width: 100%; margin-top: 10px; }
-        
-        /* Animations */
-        @keyframes fadeInSlide { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
-        .anim-panel { animation: fadeInSlide 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
-        .hidden { display: none !important; }
-        
-        /* RViz Legend */
-        .map-legend { position: absolute; bottom: 12px; left: 12px; background: rgba(15, 15, 15, 0.85); padding: 10px 12px; border-radius: 6px; font-size: 0.75em; border: 1px solid #333; pointer-events: none; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; }
-        .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-        .legend-item:last-child { margin-bottom: 0; }
-        .color-box { width: 12px; height: 12px; border-radius: 3px; }
+/* ── Scanline overlay ──────────────────────────────────────────────────── */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 9000; pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.04) 2px,
+    rgba(0,0,0,0.04) 4px
+  );
+}
 
-        /* --- Splash Screen Styles --- */
-        #splash-screen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: #111; /* Solid dark background */
-            z-index: 9999; /* Ensure it covers everything */
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            transition: opacity 0.8s ease-out, visibility 0.8s ease-out;
-        }
+/* ── Splash ─────────────────────────────────────────────────────────────── */
+#splash {
+  position: fixed; inset: 0; z-index: 9999;
+  background: var(--bg);
+  display: flex; flex-direction: column;
+  justify-content: center; align-items: center; gap: 32px;
+  transition: opacity 0.6s ease, visibility 0.6s ease;
+}
+#splash.gone { opacity: 0; visibility: hidden; }
+.splash-logo {
+  font-family: var(--mono);
+  font-size: clamp(1.6rem, 4vw, 3rem);
+  color: var(--accent);
+  letter-spacing: 6px;
+  text-shadow: 0 0 30px rgba(0,230,118,0.4);
+  animation: glitch 4s infinite;
+}
+.splash-sub { font-family: var(--mono); font-size: 0.75rem; color: var(--muted); letter-spacing: 4px; }
+.splash-bar { width: 240px; height: 2px; background: var(--dim); overflow: hidden; }
+.splash-fill { height: 100%; width: 0; background: var(--accent); animation: fill 1.6s ease forwards; }
+@keyframes fill { to { width: 100%; } }
+@keyframes glitch {
+  0%,94%,100% { text-shadow: 0 0 30px rgba(0,230,118,0.4); transform: none; }
+  95% { text-shadow: -3px 0 #f00, 3px 0 #0ff; transform: translate(2px); }
+  97% { text-shadow: 3px 0 #f00, -3px 0 #0ff; transform: translate(-2px); }
+}
 
-        .splash-content {
-            text-align: center;
-            animation: popIn 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-        }
+/* ── Top bar ─────────────────────────────────────────────────────────────── */
+#topbar {
+  position: fixed; top: 0; left: 0; right: 0; height: 52px; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px;
+  background: rgba(10,12,10,0.92);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+}
+.tb-brand { font-family: var(--mono); font-size: 0.85rem; color: var(--accent); letter-spacing: 3px; }
+.tb-conn {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--mono); font-size: 0.7rem; letter-spacing: 2px;
+  padding: 4px 12px; border-radius: 20px;
+  transition: var(--trans);
+}
+.tb-conn.ok  { color: var(--accent); border: 1px solid rgba(0,230,118,0.3); background: rgba(0,230,118,0.06); }
+.tb-conn.bad { color: var(--danger); border: 1px solid rgba(255,23,68,0.3); background: rgba(255,23,68,0.06); }
+.led { width: 8px; height: 8px; border-radius: 50%; }
+.tb-conn.ok .led  { background: var(--accent); box-shadow: 0 0 8px var(--accent); animation: pulse 2s infinite; }
+.tb-conn.bad .led { background: var(--danger); }
+@keyframes pulse { 50% { opacity: 0.4; } }
 
-        .splash-title {
-            font-size: 3.5em;
-            font-weight: bold;
-            color: #fff;
-            letter-spacing: 4px;
-            margin-bottom: 10px;
-        }
+/* Mode tabs in topbar */
+.mode-tabs { display: flex; gap: 4px; }
+.mtab {
+  font-family: var(--mono); font-size: 0.68rem; letter-spacing: 2px;
+  padding: 5px 14px; border-radius: 3px; cursor: pointer;
+  border: 1px solid var(--dim); background: transparent;
+  color: var(--muted); transition: var(--trans); user-select: none;
+}
+.mtab:hover:not(.active):not(:disabled) { border-color: var(--accent); color: var(--text); }
+.mtab.active { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 700; }
+.mtab:disabled { opacity: 0.28; cursor: not-allowed; }
 
-        .splash-subtitle {
-            color: #888;
-            font-size: 0.9em;
-            letter-spacing: 3px;
-            margin-bottom: 30px;
-        }
+/* ── Content area ────────────────────────────────────────────────────────── */
+#content {
+  position: fixed; top: 52px; left: 0; right: 0; bottom: 0;
+  overflow: hidden;
+}
 
-        /* Loading Bar Animation */
-        .loading-bar {
-            width: 250px;
-            height: 4px;
-            background: #333;
-            margin: 0 auto;
-            border-radius: 2px;
-            overflow: hidden;
-        }
+/* ── Panels — base ───────────────────────────────────────────────────────── */
+.panel {
+  position: absolute; inset: 0;
+  display: flex;
+  opacity: 0; pointer-events: none;
+  transition: opacity var(--trans), transform var(--trans);
+  transform: translateY(12px);
+}
+.panel.visible {
+  opacity: 1; pointer-events: all;
+  transform: translateY(0);
+}
 
-        .loading-progress {
-            width: 0%;
-            height: 100%;
-            background: #149c4c;
-            animation: loadProgress 1.5s ease-in-out forwards;
-        }
+/* ─────────────────────── IDLE panel ──────────────────────────────────── */
+#panel-idle {
+  justify-content: center; align-items: center; flex-direction: column; gap: 28px;
+  background:
+    radial-gradient(ellipse 60% 40% at 50% 50%, rgba(0,230,118,0.04) 0%, transparent 70%),
+    var(--bg);
+}
+.idle-ring {
+  width: 180px; height: 180px; border-radius: 50%;
+  border: 1px solid var(--dim);
+  display: flex; justify-content: center; align-items: center;
+  position: relative;
+  animation: spin-slow 20s linear infinite;
+}
+.idle-ring::before {
+  content: '';
+  position: absolute; inset: 8px; border-radius: 50%;
+  border: 1px solid rgba(0,230,118,0.15);
+}
+.idle-ring::after {
+  content: '';
+  position: absolute; inset: -12px; border-radius: 50%;
+  border: 1px solid rgba(0,230,118,0.07);
+}
+@keyframes spin-slow { to { transform: rotate(360deg); } }
+.idle-dot {
+  width: 64px; height: 64px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(0,230,118,0.2) 0%, transparent 70%);
+  border: 2px solid var(--accent);
+  animation: spin-slow 20s linear infinite reverse;
+  display: flex; align-items: center; justify-content: center;
+}
+.idle-label {
+  font-family: var(--mono); font-size: 0.7rem; color: var(--muted);
+  letter-spacing: 4px; text-transform: uppercase;
+}
+.idle-status {
+  font-family: var(--mono); font-size: 1.1rem; color: var(--accent);
+  letter-spacing: 6px;
+}
 
-        /* Splash Animations */
-        @keyframes popIn {
-            0% { opacity: 0; transform: scale(0.8); }
-            100% { opacity: 1; transform: scale(1); }
-        }
+/* ─────────────────────── MANUAL panel ──────────────────────────────────── */
+#panel-manual {
+  flex-direction: row; padding: 16px; gap: 16px;
+}
+.cam-pane {
+  flex: 1; background: #050805; border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden; position: relative;
+  display: flex; flex-direction: column;
+}
+.cam-pane img, .cam-pane .stream-placeholder {
+  width: 100%; height: 100%; object-fit: cover;
+  display: block;
+}
+.stream-placeholder {
+  display: flex; flex-direction: column;
+  justify-content: center; align-items: center; gap: 10px;
+  color: var(--muted); font-family: var(--mono); font-size: 0.75rem; letter-spacing: 2px;
+}
+.cam-label {
+  position: absolute; top: 10px; left: 10px;
+  font-family: var(--mono); font-size: 0.62rem; color: var(--accent);
+  background: rgba(0,0,0,0.6); padding: 3px 8px; border-radius: 3px;
+  letter-spacing: 2px;
+}
+.ctrl-pane {
+  width: 280px; display: flex; flex-direction: column; gap: 14px;
+}
+.section-label {
+  font-family: var(--mono); font-size: 0.62rem; color: var(--muted);
+  letter-spacing: 3px; text-transform: uppercase;
+  padding-bottom: 8px; border-bottom: 1px solid var(--border);
+}
 
-        @keyframes loadProgress {
-            0% { width: 0%; }
-            50% { width: 70%; }
-            100% { width: 100%; }
-        }
+/* Speed slider */
+.speed-row { display: flex; flex-direction: column; gap: 6px; }
+.speed-val { font-family: var(--mono); font-size: 1.4rem; color: var(--accent); letter-spacing: 2px; }
+input[type=range] {
+  -webkit-appearance: none; width: 100%; background: transparent;
+}
+input[type=range]::-webkit-slider-runnable-track {
+  height: 4px; background: var(--dim); border-radius: 2px;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 16px; height: 16px;
+  border-radius: 50%; background: var(--accent); margin-top: -6px; cursor: pointer;
+  transition: transform 0.15s; box-shadow: 0 0 8px rgba(0,230,118,0.5);
+}
+input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.3); }
 
-        /* Class added by JS to trigger the fade */
-        .fade-out {
-            opacity: 0 !important;
-            visibility: hidden !important;
-        }
-    </style>
+/* DPAD */
+.dpad {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 6px; width: 160px; margin: 0 auto;
+}
+.dpad button {
+  aspect-ratio: 1; background: var(--bg2); border: 1px solid var(--border);
+  color: var(--text); border-radius: 4px; cursor: pointer; font-size: 1rem;
+  font-family: var(--mono); transition: var(--trans);
+  display: flex; justify-content: center; align-items: center;
+}
+.dpad button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); background: rgba(0,230,118,0.07); }
+.dpad button:active:not(:disabled) { transform: scale(0.94); }
+.dpad .stop-btn {
+  background: rgba(255,23,68,0.12); border-color: rgba(255,23,68,0.4); color: var(--danger);
+}
+.dpad .stop-btn:hover { background: rgba(255,23,68,0.22) !important; }
+
+/* Mapping box */
+.map-ctrl { padding: 12px; background: rgba(255,196,0,0.04); border: 1px solid rgba(255,196,0,0.2); border-radius: 4px; }
+.map-ctrl-label { font-family: var(--mono); font-size: 0.65rem; color: var(--warn); letter-spacing: 2px; margin-bottom: 8px; }
+
+/* ─────────────────────── NAVIGATION panel ──────────────────────────────── */
+#panel-navigation { flex-direction: row; padding: 16px; gap: 16px; }
+.map-pane {
+  flex: 1; background: #050805; border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden; position: relative;
+  cursor: crosshair;
+}
+#map-container { width: 100%; height: 100%; }
+.map-legend {
+  position: absolute; bottom: 10px; left: 10px;
+  background: rgba(5,8,5,0.85); border: 1px solid var(--border);
+  padding: 8px 10px; border-radius: 4px; font-family: var(--mono);
+  font-size: 0.62rem; color: var(--muted); pointer-events: none;
+}
+.legend-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.legend-row:last-child { margin: 0; }
+.lbox { width: 10px; height: 10px; border-radius: 2px; }
+.nav-ctrl {
+  width: 280px; display: flex; flex-direction: column; gap: 14px;
+}
+.coord-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+input[type=number] {
+  background: var(--bg1); color: var(--accent); border: 1px solid var(--border);
+  padding: 10px 12px; border-radius: 4px; font-family: var(--mono);
+  font-size: 0.9rem; width: 100%; outline: none; transition: border-color var(--trans);
+}
+input[type=number]:focus { border-color: var(--accent); }
+input[type=number]::placeholder { color: var(--muted); }
+.status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.stat-box {
+  background: var(--bg1); border: 1px solid var(--border);
+  border-radius: 4px; padding: 8px 10px;
+}
+.stat-box .lbl { font-family: var(--mono); font-size: 0.6rem; color: var(--muted); letter-spacing: 2px; }
+.stat-box .val { font-family: var(--mono); font-size: 1rem; color: var(--accent); margin-top: 2px; }
+
+/* ─────────────────────── FOLLOW panel ─────────────────────────────────── */
+#panel-following {
+  flex-direction: column; padding: 16px; gap: 12px; align-items: center;
+}
+.follow-cam-wrap {
+  flex: 1; width: 100%; max-width: 960px;
+  background: #050805; border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden; position: relative;
+}
+.follow-cam-wrap img {
+  width: 100%; height: 100%; object-fit: contain; display: block;
+}
+.follow-bar {
+  width: 100%; max-width: 960px;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+.follow-bar select {
+  background: var(--bg2); color: var(--accent); border: 1px solid var(--border);
+  padding: 10px 14px; border-radius: 4px; font-family: var(--mono);
+  font-size: 0.8rem; outline: none; cursor: pointer;
+  transition: border-color var(--trans);
+}
+.follow-bar select:focus { border-color: var(--accent); }
+.follow-status {
+  font-family: var(--mono); font-size: 0.75rem; color: var(--muted);
+  letter-spacing: 2px; flex: 1; text-align: center;
+}
+.follow-status.active { color: var(--accent); animation: blink 1.2s infinite; }
+@keyframes blink { 50% { opacity: 0.5; } }
+
+/* ── Universal button ───────────────────────────────────────────────────── */
+.btn {
+  font-family: var(--mono); font-size: 0.72rem; letter-spacing: 2px;
+  padding: 10px 18px; border-radius: 4px; cursor: pointer;
+  border: 1px solid var(--dim); background: var(--bg2); color: var(--text);
+  transition: var(--trans); text-transform: uppercase; white-space: nowrap;
+}
+.btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); background: rgba(0,230,118,0.06); }
+.btn:active:not(:disabled) { transform: scale(0.97); }
+.btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.btn.primary { background: var(--accent); color: var(--bg); border-color: var(--accent2); }
+.btn.primary:hover:not(:disabled) { background: var(--accent2); }
+.btn.danger  { background: rgba(255,23,68,0.12); color: var(--danger); border-color: rgba(255,23,68,0.4); }
+.btn.danger:hover:not(:disabled)  { background: rgba(255,23,68,0.25); }
+.btn.warn    { background: rgba(255,196,0,0.1); color: var(--warn); border-color: rgba(255,196,0,0.35); }
+.btn.warn:hover:not(:disabled)    { background: rgba(255,196,0,0.22); }
+.btn.full { width: 100%; justify-content: center; }
+
+/* ── Corner decoration ──────────────────────────────────────────────────── */
+.corner-deco {
+  position: absolute; width: 14px; height: 14px; pointer-events: none;
+}
+.corner-deco.tl { top: 6px; left: 6px; border-top: 1px solid var(--accent); border-left: 1px solid var(--accent); }
+.corner-deco.tr { top: 6px; right: 6px; border-top: 1px solid var(--accent); border-right: 1px solid var(--accent); }
+.corner-deco.bl { bottom: 6px; left: 6px; border-bottom: 1px solid var(--accent); border-left: 1px solid var(--accent); }
+.corner-deco.br { bottom: 6px; right: 6px; border-bottom: 1px solid var(--accent); border-right: 1px solid var(--accent); }
+</style>
 </head>
 <body>
 
-<div id="splash-screen">
-    <div class="splash-content">
-        <div class="splash-title">Shopping Cart<span style="color: #149c4c;">Autonomous Mobile Robot</span></div>
-        <div class="splash-subtitle">INITIALIZING SYSTEM...</div>
-        <div class="loading-bar">
-            <div class="loading-progress"></div>
-        </div>
-    </div>
+<!-- ── Splash ──────────────────────────────────────────────────────────── -->
+<div id="splash">
+  <div class="splash-logo">SC-AMR</div>
+  <div class="splash-sub">SHOPPING CART AUTONOMOUS MOBILE ROBOT</div>
+  <div class="splash-bar"><div class="splash-fill"></div></div>
 </div>
 
-<div class="container">
-    <div class="header-status">
-        <div id="connIndicator" class="connection-indicator disconnected">
-            <span class="status-led"></span>
-            <span id="connText">DISCONNECTED</span>
-        </div>
-        <div style="color: #888; font-size: 0.9em; letter-spacing: 1px;">SYSTEM MODE: <span id="currentMode" style="color:#149c4c; font-weight:bold; margin-left: 5px;">IDLE</span></div>
-    </div>
+<!-- ── Top bar ────────────────────────────────────────────────────────── -->
+<div id="topbar">
+  <div class="tb-brand">SC-AMR//CTRL</div>
 
-    <div class="grid">
-        <div class="section">
-            <h2>Environment Map</h2>
-            <div id="map-container">
-                <div class="map-legend">
-                    <div class="legend-item"><div class="color-box" style="background: #ff3333;"></div> Robot Position</div>
-                    <div class="legend-item"><div class="color-box" style="background: #00ff00;"></div> Laser Scan</div>
-                </div>
-            </div>
-            <div class="status-grid">
-                <div class="status-item"><div class="status-label">X Axis (m)</div><div class="status-value" id="posX">0.00</div></div>
-                <div class="status-item"><div class="status-label">Y Axis (m)</div><div class="status-value" id="posY">0.00</div></div>
-                <div class="status-item"><div class="status-label">Heading</div><div class="status-value" id="posYaw">0.0°</div></div>
-                <div class="status-item"><div class="status-label">Nav2 State</div><div class="status-value" id="goalStatus">IDLE</div></div>
-            </div>
-        </div>
+  <div class="mode-tabs">
+    <div class="mtab active" id="tab-idle"       onclick="setMode('IDLE')">IDLE</div>
+    <div class="mtab"        id="tab-manual"     onclick="setMode('MANUAL')">MANUAL</div>
+    <div class="mtab"        id="tab-navigation" onclick="setMode('NAVIGATION')">NAVIGATE</div>
+    <div class="mtab"        id="tab-following"  onclick="setMode('FOLLOWING')">FOLLOW</div>
+  </div>
 
-        <div class="section">
-            <h2>Control Panel</h2>
-            <div class="mode-buttons">
-                <button class="mode-btn active" id="btn-idle" onclick="setMode('IDLE')">Idle</button>
-                <button class="mode-btn" id="btn-manual" onclick="setMode('MANUAL')">Manual</button>
-                <button class="mode-btn" id="btn-navigate" onclick="setMode('NAVIGATION')">Navigate</button>
-                <button class="mode-btn" id="btn-following" onclick="setMode('FOLLOWING')">Follow Me</button>
-            </div>
-
-            <div id="manualSection" class="hidden">
-                <div class="anim-panel" style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #333; text-align: center;">
-                    <label for="speedSlider" style="color: #888; font-size: 0.8em; text-transform: uppercase; letter-spacing: 1px;">
-                        Manual Speed: <span id="speedValue" style="color: #149c4c; font-weight: bold; font-family: monospace; font-size: 1.2em;">0.5</span> m/s
-                    </label>
-                    <input type="range" id="speedSlider" min="0.1" max="1.5" step="0.1" value="0.5" 
-                           oninput="document.getElementById('speedValue').innerText = parseFloat(this.value).toFixed(1)">
-                </div>
-
-                <div class="drive-controls anim-panel">
-                    <div></div><button onmousedown="startDrive(1, 0)" onmouseup="stopDrive()" onmouseleave="stopDrive()">W</button><div></div>
-                    <button onmousedown="startDrive(0, 1.0)" onmouseup="stopDrive()" onmouseleave="stopDrive()">A</button>
-                    <button class="stop-btn" onclick="stopDrive()">STOP</button>
-                    <button onmousedown="startDrive(0, -1.0)" onmouseup="stopDrive()" onmouseleave="stopDrive()">D</button>
-                    <div></div><button onmousedown="startDrive(-1, 0)" onmouseup="stopDrive()" onmouseleave="stopDrive()">S</button><div></div>
-                </div>
-                
-                <div class="slam-box anim-panel">
-                    <p id="slamText" style="color:#e69500; margin: 0 0 12px 0; font-weight: bold; font-size: 0.85em; text-transform: uppercase; letter-spacing: 1px;">Mapping Control</p>
-                    <button id="btnStartSlam" class="btn-start-slam" onclick="setMode('MAPPING')">Start Mapping</button>
-                    <button id="btnStopSlam" class="btn-stop-slam hidden" onclick="setMode('IDLE')">Finish & Save</button>
-                </div>
-            </div>
-
-            <div id="navSection" class="hidden">
-                <div class="anim-panel" style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #333;">
-                    <p style="font-size: 0.75em; color: #888; margin: 0 0 12px 0; text-transform: uppercase; letter-spacing: 0.5px;">Click map to set goal or enter coordinates</p>
-                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-                        <input type="number" id="goalX" placeholder="Target X" step="0.1">
-                        <input type="number" id="goalY" placeholder="Target Y" step="0.1">
-                    </div>
-                </div>
-                <div class="anim-panel" style="display: grid; grid-template-columns: 1fr 1fr; gap:10px;">
-                    <button onclick="sendGoal()" style="background:#149c4c; border-color:#21d368;">Dispatch</button>
-                    <button onclick="cancelGoal()" style="background:#555; border-color:#777;">Abort</button>
-                </div>
-            </div>
-
-            <div id="followSection" class="hidden">
-                <div class="anim-panel" style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #333;">
-                    <p style="font-size: 0.75em; color: #888; margin: 0 0 8px 0; text-transform: uppercase; letter-spacing: 0.5px;">Select Tracking Target</p>
-                    
-                    <select id="targetSelect" style="background: #0b0b0b; color: #149c4c; border: 1px solid #444; padding: 10px; border-radius: 6px; font-weight: bold; width: 100%; box-sizing: border-box; margin-bottom: 15px; cursor: pointer; outline: none;">
-                        <option value="human">Human (Person)</option>
-                        <option value="ball">Sports Ball</option>
-                    </select>
-
-                    <div id="video-container" style="width: 100%; aspect-ratio: 4/3; background: #000; border: 1px solid #444; border-radius: 6px; position: relative; overflow: hidden; display: flex; flex-direction: column;">
-                        <div style="flex: 1; background: #000; position: relative;">
-                            <span style="color: #0000ff; font-family: monospace; font-size: 1.2em; font-weight: bold; position: absolute; top: 15px; left: 15px;">Waiting for command...</span>
-                        </div>
-                        <div style="flex: 1; background: linear-gradient(to bottom, #cccccc, #eeeeee);"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+  <div id="connBadge" class="tb-conn bad">
+    <span class="led"></span>
+    <span id="connTxt">OFFLINE</span>
+  </div>
 </div>
+
+<!-- ── Content ────────────────────────────────────────────────────────── -->
+<div id="content">
+
+  <!-- IDLE -->
+  <div class="panel visible" id="panel-idle">
+    <div class="idle-ring">
+      <div class="idle-dot">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#00e676" stroke-width="1.5">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="12" x2="15" y2="14"/>
+        </svg>
+      </div>
+    </div>
+    <div class="idle-status" id="idleStatus">STANDBY</div>
+    <div class="idle-label">SELECT A MODE TO BEGIN</div>
+  </div>
+
+  <!-- MANUAL -->
+  <div class="panel" id="panel-manual">
+    <div class="cam-pane">
+      <div class="corner-deco tl"></div><div class="corner-deco tr"></div>
+      <div class="corner-deco bl"></div><div class="corner-deco br"></div>
+      <div class="cam-label">LIVE FEED · /camera</div>
+      <img id="camStream" src="/stream/camera" alt=""
+           onerror="this.style.display='none'; document.getElementById('camPlaceholder').style.display='flex'">
+      <div id="camPlaceholder" class="stream-placeholder" style="display:none">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+          <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 3l-4 4-4-4"/>
+        </svg>
+        NO SIGNAL
+      </div>
+    </div>
+
+    <div class="ctrl-pane">
+      <div class="section-label">VELOCITY SCALE</div>
+      <div class="speed-row">
+        <div class="speed-val"><span id="speedVal">0.5</span> m/s</div>
+        <input type="range" id="speedSlider" min="0.1" max="1.5" step="0.1" value="0.5"
+               oninput="document.getElementById('speedVal').textContent=parseFloat(this.value).toFixed(1)">
+      </div>
+
+      <div class="section-label">DRIVE</div>
+      <div class="dpad">
+        <div></div>
+        <button onmousedown="startDrive(1,0)" onmouseup="stopDrive()" onmouseleave="stopDrive()"
+                ontouchstart="startDrive(1,0)" ontouchend="stopDrive()">▲</button>
+        <div></div>
+        <button onmousedown="startDrive(0,1)" onmouseup="stopDrive()" onmouseleave="stopDrive()"
+                ontouchstart="startDrive(0,1)" ontouchend="stopDrive()">◀</button>
+        <button class="stop-btn" onclick="stopDrive()">■</button>
+        <button onmousedown="startDrive(0,-1)" onmouseup="stopDrive()" onmouseleave="stopDrive()"
+                ontouchstart="startDrive(0,-1)" ontouchend="stopDrive()">▶</button>
+        <div></div>
+        <button onmousedown="startDrive(-1,0)" onmouseup="stopDrive()" onmouseleave="stopDrive()"
+                ontouchstart="startDrive(-1,0)" ontouchend="stopDrive()">▼</button>
+        <div></div>
+      </div>
+
+      <div class="map-ctrl">
+        <div class="map-ctrl-label">⬡ MAPPING</div>
+        <button class="btn warn full" id="btnMapping" onclick="toggleMapping()">START MAPPING</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- NAVIGATION -->
+  <div class="panel" id="panel-navigation">
+    <div class="map-pane">
+      <div id="map-container"></div>
+      <div class="map-legend">
+        <div class="legend-row"><div class="lbox" style="background:#ff3333"></div>Robot</div>
+        <div class="legend-row"><div class="lbox" style="background:#00e676"></div>Laser</div>
+      </div>
+      <div class="corner-deco tl"></div><div class="corner-deco tr"></div>
+      <div class="corner-deco bl"></div><div class="corner-deco br"></div>
+    </div>
+
+    <div class="nav-ctrl">
+      <div class="section-label">ROBOT POSITION</div>
+      <div class="status-grid">
+        <div class="stat-box"><div class="lbl">X (m)</div><div class="val" id="posX">0.00</div></div>
+        <div class="stat-box"><div class="lbl">Y (m)</div><div class="val" id="posY">0.00</div></div>
+        <div class="stat-box"><div class="lbl">YAW</div><div class="val" id="posYaw">0.0°</div></div>
+        <div class="stat-box"><div class="lbl">NAV2</div><div class="val" id="goalStatus">IDLE</div></div>
+      </div>
+
+      <div class="section-label">GOAL TARGET</div>
+      <div class="coord-row">
+        <input type="number" id="goalX" placeholder="X (m)" step="0.1">
+        <input type="number" id="goalY" placeholder="Y (m)" step="0.1">
+      </div>
+
+      <div class="section-label">HEADING (optional)</div>
+      <input type="number" id="goalYaw" placeholder="Yaw (deg)" step="1" style="width:100%">
+
+      <button class="btn primary full" onclick="sendGoal()" style="margin-top:4px">▶ DISPATCH GOAL</button>
+      <button class="btn danger full"  onclick="cancelGoal()">✕ ABORT NAVIGATION</button>
+
+      <div class="section-label" style="margin-top:auto">CLICK MAP TO SET GOAL</div>
+    </div>
+  </div>
+
+  <!-- FOLLOW -->
+  <div class="panel" id="panel-following">
+    <div class="follow-cam-wrap">
+      <div class="corner-deco tl"></div><div class="corner-deco tr"></div>
+      <div class="corner-deco bl"></div><div class="corner-deco br"></div>
+      <div class="cam-label">DETECTION FEED · /yolo/debug_image</div>
+      <img id="debugStream" src="" alt="" style="width:100%;height:100%;object-fit:contain;display:block">
+    </div>
+
+    <div class="follow-bar">
+      <select id="targetSelect" onchange="setTargetClass(this.value)">
+        <option value="human">TRACK: HUMAN</option>
+        <option value="ball">TRACK: SPORTS BALL</option>
+      </select>
+      <div class="follow-status" id="followStatus">STANDBY</div>
+      <button class="btn primary" id="btnFollowStart" onclick="startFollowing()">▶ START FOLLOWING</button>
+      <button class="btn danger"  id="btnFollowStop"  onclick="stopFollowing()" style="display:none">■ STOP</button>
+    </div>
+  </div>
+
+</div><!-- /content -->
 
 <script>
-    // Config ROS
-    const ros = new ROSLIB.Ros({ url: 'ws://' + window.location.hostname + ':9090' });
-    
-    // Publishers
-    const cmdVelPub = new ROSLIB.Topic({ ros: ros, name: '/cmd_vel_teleop', messageType: 'geometry_msgs/msg/Twist' });    
-    const uiModePub = new ROSLIB.Topic({ ros: ros, name: '/ui/mode/absolute', messageType: 'std_msgs/msg/String' });
-    const uiGoalPub = new ROSLIB.Topic({ ros: ros, name: '/ui/nav_goal', messageType: 'geometry_msgs/msg/PoseStamped' });
+// ── ROS connection ─────────────────────────────────────────────────────────
+const ros = new ROSLIB.Ros({ url: 'ws://' + window.location.hostname + ':9090' });
 
-    let viewer, mapClient, robotMarker;
-    
-    // Variabile pentru Interactivitatea Hartii
-    let isTrackingRobot = true;
-    let interactionTimer = null;
-    const DEFAULT_ZOOM = 45; // Pixeli per metru
+const cmdVelPub  = new ROSLIB.Topic({ ros, name: '/cmd_vel_teleop',   messageType: 'geometry_msgs/msg/Twist' });
+const uiModePub  = new ROSLIB.Topic({ ros, name: '/ui/mode/absolute', messageType: 'std_msgs/msg/String' });
+const uiGoalPub  = new ROSLIB.Topic({ ros, name: '/ui/nav_goal',      messageType: 'geometry_msgs/msg/PoseStamped' });
+const classClient = new ROSLIB.Service({ ros, name: '/detector/set_class', serviceType: 'std_srvs/srv/SetBool' });
 
-    ros.on('connection', () => {
-        document.getElementById('connIndicator').className = 'connection-indicator connected';
-        document.getElementById('connText').textContent = 'CONNECTED';
-        initMap();
-    });
+ros.on('connection', () => {
+  document.getElementById('connBadge').className = 'tb-conn ok';
+  document.getElementById('connTxt').textContent = 'ONLINE';
+  initMap();
+});
+ros.on('close', () => {
+  document.getElementById('connBadge').className = 'tb-conn bad';
+  document.getElementById('connTxt').textContent = 'OFFLINE';
+});
 
-    ros.on('close', () => {
-        document.getElementById('connIndicator').className = 'connection-indicator disconnected';
-        document.getElementById('connText').textContent = 'DISCONNECTED';
-    });
+// ── Splash dismiss ─────────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    document.getElementById('splash').classList.add('gone');
+    setTimeout(() => document.getElementById('splash').remove(), 700);
+  }, 2000);
+});
 
-    // --- Splash Screen Logic ---
-    window.addEventListener('load', () => {
-        // Wait 1.8 seconds (giving the 1.5s CSS bar time to finish) before fading out
-        setTimeout(() => {
-            const splash = document.getElementById('splash-screen');
-            if (splash) {
-                splash.classList.add('fade-out');
-                // Remove from DOM entirely after the fade transition (0.8s) completes
-                setTimeout(() => splash.remove(), 800);
-            }
-        }, 1800);
-    });
+// ── Mode switching ─────────────────────────────────────────────────────────
+let currentMode = 'IDLE';
+let mappingActive = false;
 
-    function triggerMapInteraction() {
-        isTrackingRobot = false;
-        clearTimeout(interactionTimer);
-        
-        interactionTimer = setTimeout(() => {
-            isTrackingRobot = true;
-            viewer.scene.scaleX = DEFAULT_ZOOM;
-            viewer.scene.scaleY = DEFAULT_ZOOM;
-        }, 5000);
+const TABS   = ['idle','manual','navigation','following'];
+const PANELS = { idle:'panel-idle', manual:'panel-manual', navigation:'panel-navigation', following:'panel-following' };
+
+function setMode(mode) {
+  if (mode === currentMode) return;
+
+  // Tab guards: FOLLOWING and NAVIGATION can't coexist with MANUAL
+  // These are already visually enforced by disabling tabs below.
+
+  const prev = currentMode;
+  currentMode = mode;
+
+  // Update tabs
+  TABS.forEach(t => {
+    const el = document.getElementById('tab-' + t);
+    el.classList.toggle('active', t === mode.toLowerCase());
+  });
+  updateTabInterlocks(mode);
+
+  // Swap panels
+  Object.entries(PANELS).forEach(([key, id]) => {
+    const el = document.getElementById(id);
+    if (key === mode.toLowerCase()) {
+      el.classList.add('visible');
+    } else {
+      el.classList.remove('visible');
     }
+  });
 
-    function initMap() {
-        if(viewer) return;
+  // Side effects
+  if (mode === 'FOLLOWING') {
+    // Load debug stream when entering follow mode
+    // No cache-bust query string — the server now strips it anyway,
+    // but keeping the src clean avoids the "file not found" log noise.
+    document.getElementById('debugStream').src = '/stream/debug';
+  }
+  if (prev === 'FOLLOWING') {
+    document.getElementById('debugStream').src = '';
+    resetFollowUI();
+  }
 
-        const mapContainer = document.getElementById('map-container');
-        viewer = new ROS2D.Viewer({
-            divID: 'map-container',
-            width: mapContainer.clientWidth,
-            height: 400,
-            background: '#111'
-        });
+  // Publish to ROS
+  uiModePub.publish(new ROSLIB.Message({ data: mode }));
+}
 
-        mapClient = new ROS2D.OccupancyGridClient({
-            ros: ros,
-            rootObject: viewer.scene,
-            continuous: true,
-            topic: '/map'
-        });
+function updateTabInterlocks(mode) {
+  const t = {
+    idle:       document.getElementById('tab-idle'),
+    manual:     document.getElementById('tab-manual'),
+    navigation: document.getElementById('tab-navigation'),
+    following:  document.getElementById('tab-following'),
+  };
+  Object.values(t).forEach(el => el.removeAttribute('disabled'));
+  if (mode === 'MAPPING') {
+    t.navigation.setAttribute('disabled','');
+    t.following.setAttribute('disabled','');
+  }
+}
 
-        mapClient.on('change', () => {
-            if (!viewer.scene.__initialized) {
-                viewer.scene.scaleX = DEFAULT_ZOOM;
-                viewer.scene.scaleY = DEFAULT_ZOOM;
-                viewer.scene.__initialized = true;
-            }
+// ── Mapping toggle ─────────────────────────────────────────────────────────
+function toggleMapping() {
+  mappingActive = !mappingActive;
+  const btn = document.getElementById('btnMapping');
+  if (mappingActive) {
+    btn.textContent = 'FINISH & SAVE MAP';
+    btn.classList.replace('warn', 'primary');
+    uiModePub.publish(new ROSLIB.Message({ data: 'MAPPING' }));
+    updateTabInterlocks('MAPPING');
+  } else {
+    btn.textContent = 'START MAPPING';
+    btn.classList.replace('primary', 'warn');
+    uiModePub.publish(new ROSLIB.Message({ data: 'MANUAL' }));
+    updateTabInterlocks('MANUAL');
+  }
+}
 
-            if (document.getElementById('currentMode').innerText === 'MAPPING' && isTrackingRobot) {
-                const viewWidth = document.getElementById('map-container').clientWidth;
-                const viewHeight = 400;
-                const mapOffsetX = mapClient.currentGrid.pose.position.x;
-                const mapOffsetY = mapClient.currentGrid.pose.position.y;
-                
-                viewer.scene.x = (viewWidth / 2) - ((lastRobotPose.x - mapOffsetX) * viewer.scene.scaleX);
-                viewer.scene.y = (viewHeight / 2) - (-(lastRobotPose.y - mapOffsetY) * viewer.scene.scaleY);
-            }
-        });
+// ── Teleop drive ───────────────────────────────────────────────────────────
+let driveInterval = null;
+function startDrive(lin, ang) {
+  if (driveInterval) return;
+  const publish = () => {
+    const s = parseFloat(document.getElementById('speedSlider').value);
+    cmdVelPub.publish(new ROSLIB.Message({
+      linear:  { x: lin * s, y: 0, z: 0 },
+      angular: { x: 0, y: 0, z: ang * s }
+    }));
+  };
+  publish();
+  driveInterval = setInterval(publish, 100);
+}
+function stopDrive() {
+  clearInterval(driveInterval); driveInterval = null;
+  cmdVelPub.publish(new ROSLIB.Message({ linear:{x:0,y:0,z:0}, angular:{x:0,y:0,z:0} }));
+}
 
-        robotMarker = new createjs.Shape();
-        robotMarker.graphics.beginFill('#333333').drawRoundRect(-0.15, 0.18, 0.3, 0.1, 0.02); 
-        robotMarker.graphics.beginFill('#333333').drawRoundRect(-0.15, -0.28, 0.3, 0.1, 0.02); 
-        robotMarker.graphics.setStrokeStyle(0.03).beginStroke('#ffffff').beginFill('#ff3333').drawCircle(0, 0, 0.22); 
-        robotMarker.graphics.beginFill('#ffffff').moveTo(0.05, -0.15).lineTo(0.35, 0).lineTo(0.05, 0.15).closePath(); 
-        viewer.scene.addChild(robotMarker);
-
-        const odomSub = new ROSLIB.Topic({ ros: ros, name: '/odom_nav2', messageType: 'nav_msgs/msg/Odometry' });
-        let lastRobotPose = { x: 0, y: 0, yaw: 0 };
-
-        odomSub.subscribe((msg) => {
-            const p = msg.pose.pose.position;
-            const q = msg.pose.pose.orientation;
-            
-            lastRobotPose.x = p.x;
-            lastRobotPose.y = p.y;
-            lastRobotPose.yaw = Math.atan2(2.0*(q.w*q.z + q.x*q.y), 1.0-2.0*(q.y*q.y + q.z*q.z));
-            
-            document.getElementById('posX').innerText = p.x.toFixed(2);
-            document.getElementById('posY').innerText = p.y.toFixed(2);
-            document.getElementById('posYaw').innerText = (lastRobotPose.yaw * 180 / Math.PI).toFixed(1) + '°';
-
-            robotMarker.x = p.x;
-            robotMarker.y = -p.y; 
-            robotMarker.rotation = -lastRobotPose.yaw * (180 / Math.PI);
-
-            if (isTrackingRobot) {
-                const currentMode = document.getElementById('currentMode').innerText;
-                const viewWidth = document.getElementById('map-container').clientWidth;
-                const viewHeight = 400;
-
-                if (currentMode === 'MAPPING') {
-                    if(mapClient.currentGrid && mapClient.currentGrid.pose) {
-                         const mapOffsetX = mapClient.currentGrid.pose.position.x;
-                         const mapOffsetY = mapClient.currentGrid.pose.position.y;
-                         
-                         viewer.scene.x = (viewWidth / 2) - ((p.x - mapOffsetX) * viewer.scene.scaleX);
-                         viewer.scene.y = (viewHeight / 2) - (-(p.y - mapOffsetY) * viewer.scene.scaleY);
-                    }
-                } else {
-                    viewer.scene.x = (viewWidth / 2) - (p.x * viewer.scene.scaleX);
-                    viewer.scene.y = (viewHeight / 2) - (-p.y * viewer.scene.scaleY);
-                }
-            }
-        });
-
-        let isDragging = false;
-        let lastPanX = 0, lastPanY = 0;
-        let mouseDownX = 0, mouseDownY = 0;
-
-        viewer.scene.addEventListener('stagemousedown', (event) => {
-            isDragging = true;
-            lastPanX = event.stageX;
-            lastPanY = event.stageY;
-            mouseDownX = event.stageX;
-            mouseDownY = event.stageY;
-            triggerMapInteraction();
-        });
-
-        viewer.scene.addEventListener('stagemousemove', (event) => {
-            if (isDragging) {
-                const dx = event.stageX - lastPanX;
-                const dy = event.stageY - lastPanY;
-                viewer.scene.x += dx;
-                viewer.scene.y += dy;
-                lastPanX = event.stageX;
-                lastPanY = event.stageY;
-                triggerMapInteraction(); 
-            }
-        });
-
-        viewer.scene.addEventListener('stagemouseup', (event) => {
-            isDragging = false;
-            const moveDist = Math.hypot(event.stageX - mouseDownX, event.stageY - mouseDownY);
-
-            if (moveDist < 5) {
-                if (document.getElementById('currentMode').innerText === 'NAVIGATION') {
-                    const pos = viewer.scene.globalToRos(event.stageX, event.stageY);
-                    executeGoal(pos.x, pos.y, 0);
-                }
-            }
-        });
-
-        mapContainer.addEventListener('wheel', (event) => {
-            event.preventDefault();
-            triggerMapInteraction(); 
-
-            const zoomFactor = event.deltaY > 0 ? 0.85 : 1.15;
-            const oldScale = viewer.scene.scaleX;
-            const newScale = oldScale * zoomFactor;
-
-            if (newScale < 10 || newScale > 200) return;
-
-            const rect = mapContainer.getBoundingClientRect();
-            const stageX = event.clientX - rect.left;
-            const stageY = event.clientY - rect.top;
-
-            viewer.scene.x = stageX - (stageX - viewer.scene.x) * (newScale / oldScale);
-            viewer.scene.y = stageY - (stageY - viewer.scene.y) * (newScale / oldScale);
-            
-            viewer.scene.scaleX = newScale;
-            viewer.scene.scaleY = newScale;
-        });
+// ── Navigation goal ────────────────────────────────────────────────────────
+function sendGoal() {
+  const x   = parseFloat(document.getElementById('goalX').value   || 0);
+  const y   = parseFloat(document.getElementById('goalY').value   || 0);
+  const yaw = (parseFloat(document.getElementById('goalYaw').value || 0)) * Math.PI / 180;
+  executeGoal(x, y, yaw);
+}
+function executeGoal(x, y, yaw) {
+  uiGoalPub.publish(new ROSLIB.Message({
+    header: { frame_id: 'map', stamp: { sec: 0, nanosec: 0 } },
+    pose: {
+      position:    { x, y, z: 0 },
+      orientation: { x: 0, y: 0, z: Math.sin(yaw/2), w: Math.cos(yaw/2) }
     }
+  }));
+  document.getElementById('goalStatus').textContent = 'ACTIVE';
+}
+function cancelGoal() {
+  uiModePub.publish(new ROSLIB.Message({ data: 'NAVIGATION' }));
+  document.getElementById('goalStatus').textContent = 'ABORTED';
+}
 
-    function updateInterlocks(mode) {
-        const btns = {
-            idle: document.getElementById('btn-idle'),
-            manual: document.getElementById('btn-manual'),
-            navigate: document.getElementById('btn-navigate'),
-            following: document.getElementById('btn-following')
-        };
-        Object.values(btns).forEach(b => { if(b) b.disabled = false; });
-        if (mode === 'MAPPING') {
-            if(btns.navigate) btns.navigate.disabled = true;
-            if(btns.following) btns.following.disabled = true;
-        } else if (mode === 'NAVIGATION') {
-            if(btns.manual) btns.manual.disabled = true;
-            if(btns.following) btns.following.disabled = true;
-        } else if (mode === 'FOLLOWING') {
-            if(btns.manual) btns.manual.disabled = true;
-            if(btns.navigate) btns.navigate.disabled = true;
-        }
+// ── Follow mode ────────────────────────────────────────────────────────────
+let followActive = false;
+function setTargetClass(val) {
+  classClient.callService(
+    new ROSLIB.ServiceRequest({ data: val === 'ball' }),
+    () => {}
+  );
+}
+function startFollowing() {
+  followActive = true;
+  setTargetClass(document.getElementById('targetSelect').value);
+  uiModePub.publish(new ROSLIB.Message({ data: 'FOLLOWING' }));
+  document.getElementById('followStatus').textContent = '● FOLLOWING ACTIVE';
+  document.getElementById('followStatus').classList.add('active');
+  document.getElementById('btnFollowStart').style.display = 'none';
+  document.getElementById('btnFollowStop').style.display  = '';
+}
+function stopFollowing() {
+  followActive = false;
+  uiModePub.publish(new ROSLIB.Message({ data: 'IDLE' }));
+  setMode('IDLE');
+}
+function resetFollowUI() {
+  followActive = false;
+  document.getElementById('followStatus').textContent = 'STANDBY';
+  document.getElementById('followStatus').classList.remove('active');
+  document.getElementById('btnFollowStart').style.display = '';
+  document.getElementById('btnFollowStop').style.display  = 'none';
+}
+
+// ── Map ────────────────────────────────────────────────────────────────────
+let viewer, mapClient, robotMarker;
+let isTrackingRobot = true;
+let trackResumeTimer = null;
+const ZOOM_DEFAULT = 45;
+let lastRobotPose = { x:0, y:0, yaw:0 };
+
+function triggerManualPan() {
+  isTrackingRobot = false;
+  clearTimeout(trackResumeTimer);
+  trackResumeTimer = setTimeout(() => { isTrackingRobot = true; }, 5000);
+}
+
+function initMap() {
+  if (viewer) return;
+  const container = document.getElementById('map-container');
+  const W = container.clientWidth  || 800;
+  const H = container.clientHeight || 500;
+
+  viewer = new ROS2D.Viewer({ divID: 'map-container', width: W, height: H, background: '#050805' });
+
+  mapClient = new ROS2D.OccupancyGridClient({
+    ros, rootObject: viewer.scene, continuous: true, topic: '/map'
+  });
+  mapClient.on('change', () => {
+    if (!viewer.scene.__init) {
+      viewer.scene.scaleX = ZOOM_DEFAULT;
+      viewer.scene.scaleY = ZOOM_DEFAULT;
+      viewer.scene.__init = true;
     }
+  });
 
-    function setMode(mode) {
-        const isManualOrMapping = (mode === 'MANUAL' || mode === 'MAPPING');
-        const isNavigating = (mode === 'NAVIGATION');
-        const isMapping = (mode === 'MAPPING');
-        const isFollowing = (mode === 'FOLLOWING');
+  // Robot marker
+  robotMarker = new createjs.Shape();
+  robotMarker.graphics
+    .beginFill('#1a2a1a').drawCircle(0,0,0.24)
+    .setStrokeStyle(0.04).beginStroke('#00e676').beginFill('#ff3333').drawCircle(0,0,0.20)
+    .beginFill('#fff').moveTo(0.06,-0.12).lineTo(0.30,0).lineTo(0.06,0.12).closePath();
+  viewer.scene.addChild(robotMarker);
 
-        document.getElementById('manualSection').classList.toggle('hidden', !isManualOrMapping);
-        document.getElementById('navSection').classList.toggle('hidden', !isNavigating);
-        document.getElementById('followSection').classList.toggle('hidden', !isFollowing);
-        
-        document.getElementById('btnStartSlam').classList.toggle('hidden', isMapping);
-        document.getElementById('btnStopSlam').classList.toggle('hidden', !isMapping);
-        
-        const modeMsg = new ROSLIB.Message({ data: mode });
-        uiModePub.publish(modeMsg);
+  // Odometry subscription
+  const odomSub = new ROSLIB.Topic({ ros, name: '/odom_nav2', messageType: 'nav_msgs/msg/Odometry' });
+  odomSub.subscribe(msg => {
+    const p = msg.pose.pose.position;
+    const q = msg.pose.pose.orientation;
+    lastRobotPose.x   = p.x;
+    lastRobotPose.y   = p.y;
+    lastRobotPose.yaw = Math.atan2(2*(q.w*q.z+q.x*q.y), 1-2*(q.y*q.y+q.z*q.z));
+
+    document.getElementById('posX').textContent   = p.x.toFixed(2);
+    document.getElementById('posY').textContent   = p.y.toFixed(2);
+    document.getElementById('posYaw').textContent = (lastRobotPose.yaw*180/Math.PI).toFixed(1)+'°';
+
+    robotMarker.x        =  p.x;
+    robotMarker.y        = -p.y;
+    robotMarker.rotation = -lastRobotPose.yaw * (180/Math.PI);
+
+    if (isTrackingRobot && currentMode === 'NAVIGATION') {
+      const W2 = container.clientWidth  / 2;
+      const H2 = container.clientHeight / 2;
+      viewer.scene.x = W2 - p.x  * viewer.scene.scaleX;
+      viewer.scene.y = H2 - (-p.y) * viewer.scene.scaleY;
     }
-    
-    let driveInterval = null;
+  });
 
-    function startDrive(base_lin, base_ang) {
-        if (driveInterval) return;
-        
-        // Define the publisher loop
-        const publishSpeed = () => {
-            // Get the live value from the slider ID "speedSlider"
-            const speedScale = parseFloat(document.getElementById('speedSlider').value);
-            
-            // Calculate scaled velocities
-            const scaledLin = base_lin * speedScale;
-            const scaledAng = base_ang * speedScale;
-            
-            const msg = new ROSLIB.Message({ 
-                linear: {x: scaledLin, y:0, z:0}, 
-                angular: {x:0, y:0, z:scaledAng} 
-            });
-            
-            cmdVelPub.publish(msg);
-        };
-
-        // Execute immediately on press
-        publishSpeed();
-        
-        // Loop at 10Hz to keep the stream alive
-        driveInterval = setInterval(publishSpeed, 100);
+  // Pan & click interactions
+  let dragging=false, downX=0, downY=0, lastX=0, lastY=0;
+  viewer.scene.addEventListener('stagemousedown', e => {
+    dragging=true; downX=e.stageX; downY=e.stageY; lastX=e.stageX; lastY=e.stageY;
+    triggerManualPan();
+  });
+  viewer.scene.addEventListener('stagemousemove', e => {
+    if (!dragging) return;
+    viewer.scene.x += e.stageX - lastX;
+    viewer.scene.y += e.stageY - lastY;
+    lastX=e.stageX; lastY=e.stageY;
+    triggerManualPan();
+  });
+  viewer.scene.addEventListener('stagemouseup', e => {
+    dragging = false;
+    if (Math.hypot(e.stageX-downX, e.stageY-downY) < 5 && currentMode === 'NAVIGATION') {
+      const pos = viewer.scene.globalToRos ? viewer.scene.globalToRos(e.stageX, e.stageY) :
+        { x: (e.stageX - viewer.scene.x) / viewer.scene.scaleX,
+          y: -(e.stageY - viewer.scene.y) / viewer.scene.scaleY };
+      executeGoal(pos.x, pos.y, 0);
     }
-
-    function stopDrive() {
-        clearInterval(driveInterval);
-        driveInterval = null;
-        // Send a zero-velocity command to ensure the robot stops when button is released
-        cmdVelPub.publish({ 
-            linear: {x:0, y:0, z:0}, 
-            angular: {x:0, y:0, z:0} 
-        });
-    }
-
-    function sendGoal() {
-        const x = parseFloat(document.getElementById('goalX').value || 0);
-        const y = parseFloat(document.getElementById('goalY').value || 0);
-        executeGoal(x, y, 0);
-    }
-
-    function executeGoal(x, y, yaw) {
-        const goal = new ROSLIB.Message({
-            header: { frame_id: 'map', stamp: { sec: 0, nanosec: 0 } },
-            pose: {
-                position: { x: x, y: y, z: 0.0 },
-                orientation: { x: 0.0, y: 0.0, z: Math.sin(yaw/2), w: Math.cos(yaw/2) }
-            }
-        });
-        uiGoalPub.publish(goal);
-        document.getElementById('goalStatus').innerText = 'ACTIVE';
-        setMode('NAVIGATION');
-    }
-
-    function cancelGoal() {
-        setMode('IDLE');
-        document.getElementById('goalStatus').innerText = 'IDLE';
-    }
+  });
+  container.addEventListener('wheel', e => {
+    e.preventDefault();
+    triggerManualPan();
+    const factor = e.deltaY > 0 ? 0.85 : 1.15;
+    const oldS = viewer.scene.scaleX;
+    const newS = Math.min(200, Math.max(10, oldS * factor));
+    const rect = container.getBoundingClientRect();
+    const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+    viewer.scene.x = sx - (sx - viewer.scene.x) * (newS / oldS);
+    viewer.scene.y = sy - (sy - viewer.scene.y) * (newS / oldS);
+    viewer.scene.scaleX = viewer.scene.scaleY = newS;
+  }, { passive: false });
+}
 </script>
 </body>
 </html>

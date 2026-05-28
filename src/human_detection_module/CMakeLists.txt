@@ -5,45 +5,69 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-# Găsește pachetele ROS 2
-find_package(ament_cmake REQUIRED)
-find_package(rclcpp REQUIRED)
-find_package(sensor_msgs REQUIRED)
+# ── C++17 required for std::filesystem (used implicitly by some TRT helpers) ──
+set(CMAKE_CXX_STANDARD 17)
+
+# ── ROS 2 packages ────────────────────────────────────────────────────────────
+find_package(ament_cmake   REQUIRED)
+find_package(rclcpp        REQUIRED)
+find_package(sensor_msgs   REQUIRED)
 find_package(geometry_msgs REQUIRED)
-find_package(cv_bridge REQUIRED)
+find_package(std_srvs      REQUIRED)
+find_package(cv_bridge     REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 
-# Găsește OpenCV (necesar pentru cv::dnn)
+# ── OpenCV (image pre/post processing only, NOT cv::dnn) ─────────────────────
 find_package(OpenCV REQUIRED)
 
-# Crearea executabilului C++
+# ── CUDA ─────────────────────────────────────────────────────────────────────
+find_package(CUDA REQUIRED)
+
+# Standard CUDA install path on JetPack
+set(CUDA_INCLUDE_DIRS /usr/local/cuda/include)
+set(CUDA_LIBRARIES    /usr/local/cuda/lib64/libcudart.so)
+
+# ── TensorRT 10 on Jetson (aarch64) ──────────────────────────────────────────
+# Headers land in /usr/include/aarch64-linux-gnu/
+# Libraries land in /usr/lib/aarch64-linux-gnu/
+set(TRT_INCLUDE_DIR /usr/include/aarch64-linux-gnu)
+set(TRT_LIB_DIR     /usr/lib/aarch64-linux-gnu)
+
+find_library(TRT_NVINFER   nvinfer        HINTS ${TRT_LIB_DIR} REQUIRED)
+find_library(TRT_NVONNX    nvonnxparser   HINTS ${TRT_LIB_DIR} REQUIRED)
+find_library(TRT_NVINFER_PLUGIN nvinfer_plugin HINTS ${TRT_LIB_DIR})
+
+# ── Executable ────────────────────────────────────────────────────────────────
 add_executable(detection_node src/detection_node.cpp)
 
-# Includerea librăriilor OpenCV
 target_include_directories(detection_node PUBLIC
   ${OpenCV_INCLUDE_DIRS}
+  ${CUDA_INCLUDE_DIRS}
+  ${TRT_INCLUDE_DIR}
 )
 
-# Legarea cu pachetele ROS 2
 ament_target_dependencies(detection_node
   rclcpp
   sensor_msgs
   geometry_msgs
+  std_srvs
   cv_bridge
   ament_index_cpp
 )
 
-# Linkuirea fizică a OpenCV
-target_link_libraries(detection_node ${OpenCV_LIBS})
+target_link_libraries(detection_node
+  ${OpenCV_LIBS}
+  ${CUDA_LIBRARIES}
+  ${TRT_NVINFER}
+  ${TRT_NVONNX}
+)
 
-# ----------------- REGULI DE INSTALARE -----------------
-# 1. Instalăm executabilul C++
-install(TARGETS
-  detection_node
+# ── Install ───────────────────────────────────────────────────────────────────
+install(TARGETS detection_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
-# 2. Instalăm folderul de modele (foarte important pentru a găsi .onnx-ul)
+# Install model folder — place yolov8n.onnx here before building
 install(DIRECTORY model/
   DESTINATION share/${PROJECT_NAME}/model
 )

@@ -1,3 +1,14 @@
+// ============================================================
+// web_server_node.cpp  —  v2 with MJPEG streaming
+//
+// New vs previous version:
+//  - /stream/camera  → MJPEG stream of raw /camera topic
+//  - /stream/debug   → MJPEG stream of /yolo/debug_image topic
+//    (bounding boxes drawn by detection_node and published there)
+//  - /api/robot/mode endpoint added
+//  - cv_bridge + OpenCV added for JPEG encoding
+// ============================================================
+
 #include "web_server/web_server_node.hpp"
 #include "ament_index_cpp/get_package_share_directory.hpp"
 #include <fstream>
@@ -18,17 +29,19 @@ WebServerNode::WebServerNode(const rclcpp::NodeOptions & options)
   this->declare_parameter("odom_frame_id", "custom_odom");
   this->declare_parameter("base_frame_id", "custom_base_link");
   publish_odom_tf_ = this->get_parameter("publish_odom_tf").as_bool();
-  odom_frame_id_ = this->get_parameter("odom_frame_id").as_string();
-  base_frame_id_ = this->get_parameter("base_frame_id").as_string();
+  odom_frame_id_   = this->get_parameter("odom_frame_id").as_string();
+  base_frame_id_   = this->get_parameter("base_frame_id").as_string();
 
   this->declare_parameter("auto_initialpose_from_odom", false);
   this->declare_parameter("initialpose_frame_id", "map");
-  this->declare_parameter("initialpose_cov_xy", 0.25);
+  this->declare_parameter("initialpose_cov_xy",  0.25);
   this->declare_parameter("initialpose_cov_yaw", 0.25);
+  this->declare_parameter("jpeg_quality", 75);
   auto_initialpose_from_odom_ = this->get_parameter("auto_initialpose_from_odom").as_bool();
-  initialpose_frame_id_ = this->get_parameter("initialpose_frame_id").as_string();
-  initialpose_cov_xy_ = this->get_parameter("initialpose_cov_xy").as_double();
-  initialpose_cov_yaw_ = this->get_parameter("initialpose_cov_yaw").as_double();
+  initialpose_frame_id_       = this->get_parameter("initialpose_frame_id").as_string();
+  initialpose_cov_xy_         = this->get_parameter("initialpose_cov_xy").as_double();
+  initialpose_cov_yaw_        = this->get_parameter("initialpose_cov_yaw").as_double();
+  jpeg_quality_               = this->get_parameter("jpeg_quality").as_int();
 
   try {
     resource_path_ = ament_index_cpp::get_package_share_directory("web_server") + "/resource";
@@ -37,255 +50,263 @@ WebServerNode::WebServerNode(const rclcpp::NodeOptions & options)
     resource_path_ = "./resource";
   }
 
-  // --- Configurare Cale XML pentru Follow Me ---
   try {
-    follow_me_xml_path_ = ament_index_cpp::get_package_share_directory("system_bringup") + "/behavior_trees/follow_me.xml";
+    follow_me_xml_path_ =
+      ament_index_cpp::get_package_share_directory("system_bringup")
+      + "/behavior_trees/follow_me.xml";
   } catch (const std::exception & e) {
-    RCLCPP_ERROR(this->get_logger(), "Atenție: Nu am găsit pachetul system_bringup pentru XML-ul Follow Me: %s", e.what());
+    RCLCPP_ERROR(this->get_logger(), "follow_me.xml not found: %s", e.what());
     follow_me_xml_path_ = "";
   }
 
-  // Create ROS 2 publishers and subscribers
-  odom_nav2_pub_ = this->create_publisher<nav_msgs::msg::Odometry>("/odom_nav2", 10);
+  // TF2
+  tf_buffer_   = std::make_shared<tf2_ros::Buffer>(this->get_clock());
+  tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+
+  // Publishers
+  odom_nav2_pub_   = this->create_publisher<nav_msgs::msg::Odometry>("/odom_nav2", 10);
   initialpose_pub_ = this->create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("/initialpose", 10);
+  mode_pub_        = this->create_publisher<std_msgs::msg::String>("/mode", 10);
 
   if (publish_odom_tf_) {
     tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(this);
   }
 
-  // Bridge web UI goals -> Nav2 NavigateToPose action
+  // Nav2 action client
   nav_client_ = rclcpp_action::create_client<NavigateToPose>(this, "navigate_to_pose");
+
+  // Subscribers
   goal_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
     "/ui/nav_goal", 10, std::bind(&WebServerNode::goal_pose_callback, this, std::placeholders::_1));
+
   goal_cancel_sub_ = this->create_subscription<std_msgs::msg::Empty>(
     "/goal_cancel", 10, std::bind(&WebServerNode::goal_cancel_callback, this, std::placeholders::_1));
-  
+
   odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
     "/custom_odom_topic", 10, std::bind(&WebServerNode::odom_callback, this, std::placeholders::_1));
-  
+
   amcl_pose_sub_ = this->create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
     "/amcl_pose", 10, std::bind(&WebServerNode::amcl_callback, this, std::placeholders::_1));
 
-  preempt_timer_ = this->create_wall_timer(
-    std::chrono::milliseconds(50), std::bind(&WebServerNode::preempt_timer_cb, this));
-
-  // --- Mode Management Setup ---
-  mode_pub_ = this->create_publisher<std_msgs::msg::String>("/mode", 10);
   ui_mode_sub_ = this->create_subscription<std_msgs::msg::String>(
     "/ui/mode/absolute", 10, std::bind(&WebServerNode::ui_mode_callback, this, std::placeholders::_1));
 
-  mode_publish_timer_ = this->create_wall_timer(
-    std::chrono::milliseconds(1000), [this](){
-      std_msgs::msg::String mode_msg;
-      mode_msg.data = current_mode_;
-      if(mode_pub_) mode_pub_->publish(mode_msg);
-    });
-
-  // --- YOLO Target Subscriber (Follow Me) ---
   yolo_target_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
     "/yolo/target_pose", 10, std::bind(&WebServerNode::yolo_target_callback, this, std::placeholders::_1));
 
-  RCLCPP_INFO(this->get_logger(), "Starting web server on port %d", port_);
-  RCLCPP_INFO(this->get_logger(), "Serving files from: %s", resource_path_.c_str());
-  std::cout << "Web server starting on port " << port_ << std::endl;
+  // Camera stream subscribers — use SensorDataQoS to match camera publisher
+  camera_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
+    "/camera", rclcpp::SensorDataQoS(),
+    std::bind(&WebServerNode::camera_callback, this, std::placeholders::_1));
 
-  ioc_ = std::make_shared<net::io_context>(1);
+  debug_image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
+    "/yolo/debug_image", rclcpp::SensorDataQoS(),
+    std::bind(&WebServerNode::debug_image_callback, this, std::placeholders::_1));
+
+  // Timers
+  preempt_timer_ = this->create_wall_timer(
+    std::chrono::milliseconds(50), std::bind(&WebServerNode::preempt_timer_cb, this));
+
+  mode_publish_timer_ = this->create_wall_timer(
+    std::chrono::milliseconds(1000), [this]() {
+      std_msgs::msg::String m; m.data = current_mode_;
+      if (mode_pub_) mode_pub_->publish(m);
+    });
+
+  follow_goal_timer_ = this->create_wall_timer(
+    std::chrono::milliseconds(200), std::bind(&WebServerNode::follow_goal_timer_cb, this));
+
+  RCLCPP_INFO(this->get_logger(), "Web server starting on port %d (MJPEG streams enabled)", port_);
+
+  ioc_          = std::make_shared<net::io_context>(1);
   server_thread_ = std::make_unique<std::thread>(&WebServerNode::run_server, this);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Camera frame callbacks — JPEG encode and store latest frame
+// ─────────────────────────────────────────────────────────────────────────────
+void WebServerNode::camera_callback(const sensor_msgs::msg::Image::SharedPtr msg)
+{
+  try {
+    cv::Mat frame = cv_bridge::toCvCopy(msg, "bgr8")->image;
+    std::vector<uchar> buf;
+    cv::imencode(".jpg", frame, buf,
+                 {cv::IMWRITE_JPEG_QUALITY, jpeg_quality_});
+    std::lock_guard<std::mutex> lock(camera_frame_mutex_);
+    latest_camera_jpeg_ = std::move(buf);
+  } catch (const std::exception & e) {
+    RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+      "camera_callback encode error: %s", e.what());
+  }
+}
+
+void WebServerNode::debug_image_callback(const sensor_msgs::msg::Image::SharedPtr msg)
+{
+  try {
+    cv::Mat frame = cv_bridge::toCvCopy(msg, "bgr8")->image;
+    std::vector<uchar> buf;
+    cv::imencode(".jpg", frame, buf,
+                 {cv::IMWRITE_JPEG_QUALITY, jpeg_quality_});
+    std::lock_guard<std::mutex> lock(debug_frame_mutex_);
+    latest_debug_jpeg_ = std::move(buf);
+  } catch (const std::exception & e) {
+    RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+      "debug_image_callback encode error: %s", e.what());
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Mode callback
+// ─────────────────────────────────────────────────────────────────────────────
 void WebServerNode::ui_mode_callback(const std_msgs::msg::String::SharedPtr msg)
 {
-  RCLCPP_INFO(this->get_logger(), "Mod schimbat din Web UI: %s", msg->data.c_str());
+  RCLCPP_INFO(this->get_logger(), "Mode change: %s", msg->data.c_str());
   current_mode_ = msg->data;
 
   if (current_mode_ != "FOLLOWING") {
-      is_following_active_ = false;
+    is_following_active_ = false;
+    has_pending_follow_  = false;
   }
 
-  // Oprim robotul din a mai naviga singur când se schimbă modul forțat
   if ((current_mode_ == "MANUAL" || current_mode_ == "IDLE") && current_goal_handle_) {
-    RCLCPP_WARN(this->get_logger(), "Anulez navigația autonomă curentă (trecere în %s).", current_mode_.c_str());
+    RCLCPP_WARN(this->get_logger(), "Cancelling navigation (switching to %s)", current_mode_.c_str());
     (void)nav_client_->async_cancel_goal(current_goal_handle_);
   }
 
   if (current_mode_ == "FOLLOWING") {
-      is_following_active_ = true;
-      RCLCPP_INFO(this->get_logger(), "Mod Follow Me Activat! Aștept target pe /yolo/target_pose");
+    is_following_active_ = true;
+    RCLCPP_INFO(this->get_logger(), "Follow-Me active. Waiting on /yolo/target_pose");
   }
 
-  std_msgs::msg::String mode_msg;
-  mode_msg.data = current_mode_;
-  mode_pub_->publish(mode_msg);
+  std_msgs::msg::String m; m.data = current_mode_;
+  mode_pub_->publish(m);
 }
 
-void WebServerNode::yolo_target_callback(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
+// ─────────────────────────────────────────────────────────────────────────────
+// YOLO target → transform to map → store for throttled send
+// ─────────────────────────────────────────────────────────────────────────────
+void WebServerNode::yolo_target_callback(
+  const geometry_msgs::msg::PoseStamped::SharedPtr msg)
 {
-  // Ignoră comenzile de la cameră dacă modul Follow Me nu a fost apăsat în UI
-  if (!is_following_active_) {
-      return;
-  }
+  if (!is_following_active_) return;
 
-  if (!nav_client_) {
-    RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "Nav2 action client not initialized");
+  geometry_msgs::msg::PoseStamped pose_in_map;
+  try {
+    pose_in_map = tf_buffer_->transform(*msg, "map", tf2::durationFromSec(0.1));
+  } catch (const tf2::TransformException & ex) {
+    RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
+      "TF camera_link→map failed: %s", ex.what());
     return;
   }
 
-  NavigateToPose::Goal goal;
-  goal.pose = *msg;
-  
-  // Forțează XML-ul de Follow Me (cel la 5Hz)
-  if (!follow_me_xml_path_.empty()) {
-      goal.behavior_tree = follow_me_xml_path_;
-  } else {
-      RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "Nu se găsește follow_me.xml!");
-  }
-
-  RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000, 
-      "Trimit update la Nav2 către om: x=%.2f, y=%.2f", goal.pose.pose.position.x, goal.pose.pose.position.y);
-
-  auto send_goal_options = rclcpp_action::Client<NavigateToPose>::SendGoalOptions();
-  nav_client_->async_send_goal(goal, send_goal_options);
+  std::lock_guard<std::mutex> lock(data_mutex_);
+  pending_follow_pose_ = pose_in_map;
+  has_pending_follow_  = true;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Follow goal timer — sends at ≤5 Hz to avoid flooding Nav2
+// ─────────────────────────────────────────────────────────────────────────────
+void WebServerNode::follow_goal_timer_cb()
+{
+  if (!is_following_active_) return;
+
+  geometry_msgs::msg::PoseStamped target;
+  {
+    std::lock_guard<std::mutex> lock(data_mutex_);
+    if (!has_pending_follow_) return;
+    target              = pending_follow_pose_;
+    has_pending_follow_ = false;
+  }
+
+  if (!nav_client_) return;
+
+  NavigateToPose::Goal goal;
+  goal.pose = target;
+  if (!follow_me_xml_path_.empty()) goal.behavior_tree = follow_me_xml_path_;
+
+  RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
+    "Follow→Nav2: x=%.2f y=%.2f (map)", goal.pose.pose.position.x, goal.pose.pose.position.y);
+
+  auto opts = rclcpp_action::Client<NavigateToPose>::SendGoalOptions();
+  opts.goal_response_callback = [this](GoalHandleNavigateToPose::SharedPtr gh) {
+    if (gh) current_goal_handle_ = gh;
+  };
+  opts.result_callback = [this](const GoalHandleNavigateToPose::WrappedResult &) {
+    current_goal_handle_.reset();
+  };
+  nav_client_->async_send_goal(goal, opts);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Nav goal / cancel helpers
+// ─────────────────────────────────────────────────────────────────────────────
 void WebServerNode::send_pending_goal()
 {
-  if (!pending_goal_) {
-    return;
-  }
+  if (!pending_goal_) return;
 
   NavigateToPose::Goal goal;
-  goal.pose = pending_goal_pose_;
-  goal.behavior_tree = ""; // Pentru Navigația normală (puncte pe hartă), folosește XML-ul default din YAML
-  pending_goal_ = false;
+  goal.pose          = pending_goal_pose_;
+  goal.behavior_tree = "";
+  pending_goal_      = false;
 
-  RCLCPP_INFO(this->get_logger(), "Forwarding goal to Nav2: frame=%s x=%.3f y=%.3f",
-              goal.pose.header.frame_id.c_str(), goal.pose.pose.position.x, goal.pose.pose.position.y);
+  RCLCPP_INFO(this->get_logger(), "UI goal → Nav2: frame=%s x=%.3f y=%.3f",
+    goal.pose.header.frame_id.c_str(),
+    goal.pose.pose.position.x, goal.pose.pose.position.y);
 
-  rclcpp_action::Client<NavigateToPose>::SendGoalOptions options;
-  options.goal_response_callback =
-    [this](GoalHandleNavigateToPose::SharedPtr goal_handle) {
-      if (!goal_handle) {
-        RCLCPP_WARN(this->get_logger(), "Nav2 goal rejected");
-        return;
-      }
-      current_goal_handle_ = goal_handle;
-      RCLCPP_INFO(this->get_logger(), "Nav2 goal accepted");
-    };
-
-  options.result_callback =
-    [this](const GoalHandleNavigateToPose::WrappedResult & result) {
-      switch (result.code) {
-        case rclcpp_action::ResultCode::SUCCEEDED:
-          RCLCPP_INFO(this->get_logger(), "Nav2 goal succeeded");
-          break;
-        case rclcpp_action::ResultCode::ABORTED:
-          RCLCPP_WARN(this->get_logger(), "Nav2 goal aborted");
-          break;
-        case rclcpp_action::ResultCode::CANCELED:
-          RCLCPP_WARN(this->get_logger(), "Nav2 goal canceled");
-          break;
-        default:
-          RCLCPP_WARN(this->get_logger(), "Nav2 goal finished with unknown result code");
-          break;
-      }
-      current_goal_handle_.reset();
-    };
-
-  (void)nav_client_->async_send_goal(goal, options);
+  rclcpp_action::Client<NavigateToPose>::SendGoalOptions opts;
+  opts.goal_response_callback = [this](GoalHandleNavigateToPose::SharedPtr gh) {
+    if (!gh) { RCLCPP_WARN(this->get_logger(), "Nav2 goal rejected"); return; }
+    current_goal_handle_ = gh;
+    RCLCPP_INFO(this->get_logger(), "Nav2 goal accepted");
+  };
+  opts.result_callback = [this](const GoalHandleNavigateToPose::WrappedResult & r) {
+    const char * s = "unknown";
+    if (r.code == rclcpp_action::ResultCode::SUCCEEDED) s = "succeeded";
+    else if (r.code == rclcpp_action::ResultCode::ABORTED)  s = "aborted";
+    else if (r.code == rclcpp_action::ResultCode::CANCELED)  s = "canceled";
+    RCLCPP_INFO(this->get_logger(), "Nav2 goal %s", s);
+    current_goal_handle_.reset();
+  };
+  (void)nav_client_->async_send_goal(goal, opts);
 }
 
 void WebServerNode::preempt_timer_cb()
 {
-  if (!cancel_in_progress_) {
-    return;
-  }
-
-  if (current_goal_handle_) {
-    return;
-  }
-
+  if (!cancel_in_progress_ || current_goal_handle_) return;
   cancel_in_progress_ = false;
   send_pending_goal();
 }
 
 void WebServerNode::goal_pose_callback(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
 {
-  if (!nav_client_) {
-    RCLCPP_ERROR(this->get_logger(), "Nav2 action client not initialized");
+  if (!nav_client_ || !nav_client_->wait_for_action_server(std::chrono::seconds(1))) {
+    RCLCPP_WARN(this->get_logger(), "Nav2 action server not available");
     return;
   }
-
-  if (!nav_client_->wait_for_action_server(std::chrono::seconds(1))) {
-    RCLCPP_WARN(this->get_logger(), "NavigateToPose action server not available");
-    return;
-  }
-
   pending_goal_pose_ = *msg;
-  pending_goal_ = true;
+  pending_goal_      = true;
 
   if (current_goal_handle_) {
     if (!cancel_in_progress_) {
       cancel_in_progress_ = true;
-      RCLCPP_INFO(this->get_logger(), "Canceling active goal before sending new goal");
       (void)nav_client_->async_cancel_goal(current_goal_handle_);
     }
     return;
   }
-
   send_pending_goal();
 }
 
 void WebServerNode::goal_cancel_callback(const std_msgs::msg::Empty::SharedPtr)
 {
-  if (!nav_client_) {
-    RCLCPP_ERROR(this->get_logger(), "Nav2 action client not initialized");
-    return;
-  }
-
-  if (!current_goal_handle_) {
-    RCLCPP_WARN(this->get_logger(), "No active goal to cancel");
-    return;
-  }
-
+  if (!nav_client_ || !current_goal_handle_) return;
   RCLCPP_INFO(this->get_logger(), "Cancel requested");
   (void)nav_client_->async_cancel_goal(current_goal_handle_);
 }
 
-WebServerNode::~WebServerNode()
-{
-  running_ = false;
-  if (ioc_) {
-    ioc_->stop();
-  }
-  if (server_thread_ && server_thread_->joinable()) {
-    server_thread_->join();
-  }
-}
-
-void WebServerNode::run_server()
-{
-  try {
-    auto const address = net::ip::make_address("0.0.0.0");
-    tcp::acceptor acceptor{*ioc_, {address, static_cast<unsigned short>(port_)}};
-    std::cout << "Server listening on port " << port_ << std::endl;
-
-    while (running_) {
-      tcp::socket socket{*ioc_};
-      try {
-        acceptor.accept(socket);
-        std::thread(&WebServerNode::handle_session, this, std::move(socket)).detach();
-      } catch (const std::exception & e) {
-        if (running_) {
-          RCLCPP_DEBUG(this->get_logger(), "Accept error: %s", e.what());
-        }
-      }
-    }
-  } catch (const std::exception & e) {
-    RCLCPP_ERROR(this->get_logger(), "Server error: %s", e.what());
-    std::cerr << "Server error: " << e.what() << std::endl;
-  }
-}
-
+// ─────────────────────────────────────────────────────────────────────────────
+// Odometry / AMCL callbacks
+// ─────────────────────────────────────────────────────────────────────────────
 void WebServerNode::odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg)
 {
   std::lock_guard<std::mutex> lock(data_mutex_);
@@ -293,89 +314,128 @@ void WebServerNode::odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg)
 
   if (auto_initialpose_from_odom_ && !initialpose_sent_ && initialpose_pub_) {
     geometry_msgs::msg::PoseWithCovarianceStamped init;
-    init.header.stamp = msg->header.stamp;
+    init.header.stamp    = msg->header.stamp;
     init.header.frame_id = initialpose_frame_id_;
-    init.pose.pose = msg->pose.pose;
-
+    init.pose.pose       = msg->pose.pose;
     init.pose.covariance.fill(0.0);
-    init.pose.covariance[0] = initialpose_cov_xy_;
-    init.pose.covariance[7] = initialpose_cov_xy_;
+    init.pose.covariance[0]  = initialpose_cov_xy_;
+    init.pose.covariance[7]  = initialpose_cov_xy_;
     init.pose.covariance[35] = initialpose_cov_yaw_;
-
     initialpose_pub_->publish(init);
     initialpose_sent_ = true;
-
-    RCLCPP_INFO(this->get_logger(),
-                "Published /initialpose from /custom_odom_topic: frame=%s x=%.3f y=%.3f",
-                init.header.frame_id.c_str(), init.pose.pose.position.x, init.pose.pose.position.y);
   }
 
   if (odom_nav2_pub_) {
     nav_msgs::msg::Odometry filtered = *msg;
-    filtered.header.frame_id = odom_frame_id_;
-    filtered.child_frame_id = base_frame_id_;
-
-    filtered.twist.twist.linear.y = 0.0;
-    filtered.twist.twist.linear.z = 0.0;
+    filtered.header.frame_id       = odom_frame_id_;
+    filtered.child_frame_id        = base_frame_id_;
+    filtered.twist.twist.linear.y  = 0.0;
+    filtered.twist.twist.linear.z  = 0.0;
     filtered.twist.twist.angular.x = 0.0;
     filtered.twist.twist.angular.y = 0.0;
-
     odom_nav2_pub_->publish(filtered);
 
     if (tf_broadcaster_) {
       geometry_msgs::msg::TransformStamped tf;
-      tf.header.stamp = filtered.header.stamp;
-      tf.header.frame_id = filtered.header.frame_id;
-      tf.child_frame_id = filtered.child_frame_id;
+      tf.header.stamp       = filtered.header.stamp;
+      tf.header.frame_id    = filtered.header.frame_id;
+      tf.child_frame_id     = filtered.child_frame_id;
       tf.transform.translation.x = filtered.pose.pose.position.x;
       tf.transform.translation.y = filtered.pose.pose.position.y;
       tf.transform.translation.z = filtered.pose.pose.position.z;
-      tf.transform.rotation = filtered.pose.pose.orientation;
+      tf.transform.rotation      = filtered.pose.pose.orientation;
       tf_broadcaster_->sendTransform(tf);
     }
   }
 }
 
-void WebServerNode::amcl_callback(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg)
+void WebServerNode::amcl_callback(
+  const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg)
 {
   std::lock_guard<std::mutex> lock(data_mutex_);
   current_pose_ = msg->pose.pose;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// HTTP server
+// ─────────────────────────────────────────────────────────────────────────────
+WebServerNode::~WebServerNode()
+{
+  running_ = false;
+  if (ioc_) ioc_->stop();
+  if (server_thread_ && server_thread_->joinable()) server_thread_->join();
+}
+
+void WebServerNode::run_server()
+{
+  try {
+    auto const address = net::ip::make_address("0.0.0.0");
+    tcp::acceptor acceptor{*ioc_, {address, static_cast<unsigned short>(port_)}};
+    RCLCPP_INFO(this->get_logger(), "HTTP server listening on port %d", port_);
+
+    while (running_) {
+      tcp::socket socket{*ioc_};
+      try {
+        acceptor.accept(socket);
+        // Peek at the path to decide if it's an MJPEG stream
+        // (long-lived connection, needs its own thread)
+        std::thread([this, s = std::move(socket)]() mutable {
+          handle_session(std::move(s));
+        }).detach();
+      } catch (const std::exception & e) {
+        if (running_) RCLCPP_DEBUG(this->get_logger(), "Accept error: %s", e.what());
+      }
+    }
+  } catch (const std::exception & e) {
+    RCLCPP_ERROR(this->get_logger(), "Server error: %s", e.what());
+  }
+}
+
 void WebServerNode::handle_session(tcp::socket socket)
 {
   try {
-    beast::flat_buffer buffer;
+    beast::flat_buffer               buffer;
     http::request<http::string_body> req;
     http::read(socket, buffer, req);
 
     std::string path = std::string(req.target());
-    
+
+    // FIX: Strip query string (?timestamp cache-bust etc.) before routing.
+    // Without this, /stream/debug?1779982987818 falls through to the static
+    // file handler and logs "File not found: .../resource/stream/debug?..."
+    auto qs_pos = path.find('?');
+    if (qs_pos != std::string::npos) {
+      path = path.substr(0, qs_pos);
+    }
+
+    // MJPEG streams — long-lived, handled separately
+    if (path == "/stream/camera" || path == "/stream/debug") {
+      handle_mjpeg_stream(path, std::move(socket));
+      return;
+    }
+
     if (path.find("/api/") == 0) {
       handle_api_request(path, socket);
       return;
     }
-    
-    if (path == "/") {
-      path = "/index.html";
-    }
+
+    if (path == "/") path = "/index.html";
 
     http::response<http::string_body> res;
-    std::string file_content = load_file(resource_path_ + path);
-    
-    if (!file_content.empty()) {
+    std::string content = load_file(resource_path_ + path);
+
+    if (!content.empty()) {
       res.result(http::status::ok);
       res.set(http::field::server, "ROS2 Web Server");
       res.set(http::field::content_type, get_mime_type(path));
       res.set(http::field::access_control_allow_origin, "*");
-      res.body() = file_content;
+      res.body() = content;
     } else {
       res.result(http::status::not_found);
       res.set(http::field::content_type, "text/plain");
       res.set(http::field::access_control_allow_origin, "*");
       res.body() = "File not found: " + path;
     }
-
     res.prepare_payload();
     http::write(socket, res);
     socket.shutdown(tcp::socket::shutdown_send);
@@ -384,27 +444,99 @@ void WebServerNode::handle_session(tcp::socket socket)
   }
 }
 
-void WebServerNode::handle_api_request(const std::string & path, tcp::socket & socket)
+// ─────────────────────────────────────────────────────────────────────────────
+// MJPEG streaming — push frames as multipart/x-mixed-replace
+// Each frame is sent as a JPEG boundary block.
+// Runs in its own thread (detached from accept loop above).
+// ─────────────────────────────────────────────────────────────────────────────
+void WebServerNode::handle_mjpeg_stream(
+  const std::string & path, tcp::socket socket)
+{
+  try {
+    // Send HTTP header
+    const std::string header =
+      "HTTP/1.1 200 OK\r\n"
+      "Content-Type: multipart/x-mixed-replace;boundary=frame\r\n"
+      "Cache-Control: no-cache\r\n"
+      "Access-Control-Allow-Origin: *\r\n"
+      "Connection: close\r\n"
+      "\r\n";
+    boost::asio::write(socket, boost::asio::buffer(header));
+
+    const bool is_debug = (path == "/stream/debug");
+
+    while (running_) {
+      std::vector<uchar> jpeg;
+
+      if (is_debug) {
+        std::lock_guard<std::mutex> lock(debug_frame_mutex_);
+        jpeg = latest_debug_jpeg_;
+      } else {
+        std::lock_guard<std::mutex> lock(camera_frame_mutex_);
+        jpeg = latest_camera_jpeg_;
+      }
+
+      if (jpeg.empty()) {
+        // No frame yet — send a small black placeholder
+        cv::Mat placeholder(240, 320, CV_8UC3, cv::Scalar(20, 20, 20));
+        cv::putText(placeholder, "Waiting for stream...",
+          cv::Point(20, 120), cv::FONT_HERSHEY_SIMPLEX,
+          0.6, cv::Scalar(100, 100, 100), 1);
+        cv::imencode(".jpg", placeholder, jpeg,
+                     {cv::IMWRITE_JPEG_QUALITY, 60});
+      }
+
+      const std::string part_header =
+        "--frame\r\n"
+        "Content-Type: image/jpeg\r\n"
+        "Content-Length: " + std::to_string(jpeg.size()) + "\r\n"
+        "\r\n";
+
+      boost::system::error_code ec;
+      boost::asio::write(socket, boost::asio::buffer(part_header), ec);
+      if (ec) break;
+      boost::asio::write(socket, boost::asio::buffer(jpeg.data(), jpeg.size()), ec);
+      if (ec) break;
+      boost::asio::write(socket, boost::asio::buffer(std::string("\r\n")), ec);
+      if (ec) break;
+
+      // ~20 FPS cap — avoids hammering the network on a Jetson
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+  } catch (const std::exception & e) {
+    // Client disconnected — normal, not an error
+    (void)e;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// API endpoints
+// ─────────────────────────────────────────────────────────────────────────────
+void WebServerNode::handle_api_request(
+  const std::string & path, tcp::socket & socket)
 {
   http::response<http::string_body> res;
   res.set(http::field::server, "ROS2 Web Server");
   res.set(http::field::content_type, "application/json");
   res.set(http::field::access_control_allow_origin, "*");
-  
+
   std::lock_guard<std::mutex> lock(data_mutex_);
-  
+
   if (path == "/api/robot/state") {
     res.result(http::status::ok);
-    std::string json = "{\"connected\": true, \"position\": {\"x\": " + 
-                       std::to_string(current_pose_.position.x) + ", \"y\": " + 
-                       std::to_string(current_pose_.position.y) + "}, \"orientation\": " + 
-                       std::to_string(current_pose_.orientation.z) + "}";
-    res.body() = json;
+    res.body() =
+      "{\"connected\":true,\"position\":{\"x\":" +
+      std::to_string(current_pose_.position.x) + ",\"y\":" +
+      std::to_string(current_pose_.position.y) + "},\"orientation\":" +
+      std::to_string(current_pose_.orientation.z) + "}";
+  } else if (path == "/api/robot/mode") {
+    res.result(http::status::ok);
+    res.body() = "{\"mode\":\"" + current_mode_ + "\"}";
   } else {
     res.result(http::status::not_found);
-    res.body() = "{\"error\": \"API endpoint not found\"}";
+    res.body() = "{\"error\":\"endpoint not found\"}";
   }
-  
+
   res.prepare_payload();
   http::write(socket, res);
   socket.shutdown(tcp::socket::shutdown_send);
@@ -412,17 +544,16 @@ void WebServerNode::handle_api_request(const std::string & path, tcp::socket & s
 
 std::string WebServerNode::get_mime_type(const std::string & path)
 {
-  auto has_extension = [](const std::string & str, const std::string & ext) {
-    return str.size() >= ext.size() && 
-           str.compare(str.size() - ext.size(), ext.size(), ext) == 0;
+  auto ends = [](const std::string & s, const std::string & ext) {
+    return s.size() >= ext.size() &&
+           s.compare(s.size() - ext.size(), ext.size(), ext) == 0;
   };
-
-  if (has_extension(path, ".html")) return "text/html";
-  if (has_extension(path, ".js")) return "application/javascript";
-  if (has_extension(path, ".css")) return "text/css";
-  if (has_extension(path, ".json")) return "application/json";
-  if (has_extension(path, ".png")) return "image/png";
-  if (has_extension(path, ".jpg") || has_extension(path, ".jpeg")) return "image/jpeg";
+  if (ends(path, ".html")) return "text/html";
+  if (ends(path, ".js"))   return "application/javascript";
+  if (ends(path, ".css"))  return "text/css";
+  if (ends(path, ".json")) return "application/json";
+  if (ends(path, ".png"))  return "image/png";
+  if (ends(path, ".jpg") || ends(path, ".jpeg")) return "image/jpeg";
   return "text/plain";
 }
 
@@ -430,13 +561,12 @@ std::string WebServerNode::load_file(const std::string & path)
 {
   std::ifstream file(path, std::ios::binary);
   if (!file) {
-    RCLCPP_WARN(this->get_logger(), "Could not open file: %s", path.c_str());
+    RCLCPP_WARN(this->get_logger(), "File not found: %s", path.c_str());
     return "";
   }
-
-  std::stringstream buffer;
-  buffer << file.rdbuf();
-  return buffer.str();
+  std::stringstream buf;
+  buf << file.rdbuf();
+  return buf.str();
 }
 
 }  // namespace web_server
