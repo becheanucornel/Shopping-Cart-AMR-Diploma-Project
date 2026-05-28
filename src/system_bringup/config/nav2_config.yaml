@@ -1,6 +1,6 @@
 amcl:
   ros__parameters:
-    use_sim_time: true
+    use_sim_time: false
     alpha1: 0.2
     alpha2: 0.2
     alpha3: 0.2
@@ -27,7 +27,7 @@ amcl:
 
 bt_navigator:
   ros__parameters:
-    use_sim_time: true
+    use_sim_time: false
     global_frame: map
     robot_base_frame: "custom_base_link"
     odom_topic: /custom_odom_topic
@@ -38,7 +38,7 @@ bt_navigator:
 
 controller_server:
   ros__parameters:
-    use_sim_time: true
+    use_sim_time: false
     controller_frequency: 10.0
     odom_topic: /custom_odom_topic
     min_x_velocity_threshold: 0.001
@@ -48,7 +48,7 @@ controller_server:
     transform_tolerance: 1.5
     progress_checker_plugins: ["progress_checker"]
     goal_checker_plugins: ["general_goal_checker"]
-    controller_plugins: ["FollowPath", "DynamicPointFollower"]
+    controller_plugins: ["FollowPath"]
     progress_checker:
       plugin: "nav2_controller::SimpleProgressChecker"
       required_movement_radius: 0.05
@@ -60,27 +60,19 @@ controller_server:
       yaw_goal_tolerance: 0.5
     FollowPath:
       plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
-      desired_linear_vel: 0.8           # Viteza de croaziera
-
-      # 1. MORCOVUL MAI DEPARTE CA SĂ MEARGĂ DREPT
-      lookahead_dist: 0.6               # Mărit: trebuie să se uite mai departe!
+      desired_linear_vel: 0.8
+      lookahead_dist: 0.6
       min_lookahead_dist: 0.5
-      max_lookahead_dist: 1.2          # Lasă-l să se uite până la 3 metri în față la viteza asta
+      max_lookahead_dist: 1.2
       lookahead_time: 1.5
       use_velocity_scaled_lookahead: true
-      
-      # 2. LOGICA TA: "OPREȘTE-TE ȘI ROTEȘTE-TE"
       use_rotate_to_heading: false
-      rotate_to_heading_angular_vel: 0.78  # Viteza cu care se rotește pe loc
-      rotate_to_heading_min_angle: 0.25   # CRITIC: Daca traiectoria deviază cu doar ~15 grade, se oprește, se rotește pe loc și abia apoi pleacă drept!
+      rotate_to_heading_angular_vel: 0.78
+      rotate_to_heading_min_angle: 0.25
       max_angular_accel: 0.35
-
-      # 3. FRÂNĂ OBLIGATORIE ÎN CURBE (să nu mai bage curbe la 2.5 m/s)
       use_regulated_linear_velocity_scaling: true
-      regulated_linear_scaling_min_radius: 1.5   # Dacă raza curbei e mai mică de 1.5m, bagă frână liniară
-      regulated_linear_scaling_min_speed: 0.1    # Încetinește până la 0.1 m/s în curbe ca să le ia fin
-
-      # Setari pentru evitarea coliziunilor
+      regulated_linear_scaling_min_radius: 1.5
+      regulated_linear_scaling_min_speed: 0.1
       max_allowed_time_to_collision_up_to_carrot: 0.5
       transform_tolerance: 0.5
       use_cost_regulated_linear_velocity_scaling: true
@@ -90,21 +82,10 @@ controller_server:
       min_approach_linear_velocity: 0.05
       use_collision_detection: true
       max_robot_pose_search_dist: 10.0
-    DynamicPointFollower:
-      plugin: "nav2_dynamic_point_follower::DynamicPointFollower"
-      k1: 0.5            # Forward speed gain (increase for faster response)
-      k2: 0.8            # Angular speed gain
-      lookahead_dist: 0.6
-      allow_reversing: true
-      # You MUST point this to the topic your DetectionNode publishes to
-      cmd_vel_topic: "/cmd_vel" 
-      # Safety buffer distance from the target (in meters)
-      max_distance: 1.0  
-      min_distance: 0.4
 
 planner_server:
   ros__parameters:
-    use_sim_time: true
+    use_sim_time: false
     expected_planner_frequency: 5.0
     planner_plugins: ["GridBased"]
     GridBased:
@@ -115,9 +96,9 @@ planner_server:
 
 behavior_server:
   ros__parameters:
-    use_sim_time: true
+    use_sim_time: false
     costmap_topic: local_costmap/costmap_raw
-    behavior_plugins: ["spin", "backup", "drive_on_heading", "wait"] # Ensure "wait" is here!
+    behavior_plugins: ["spin", "backup", "drive_on_heading", "wait"]
     spin:
       plugin: "nav2_behaviors::Spin"
     backup:
@@ -130,7 +111,7 @@ behavior_server:
 local_costmap:
   local_costmap:
     ros__parameters:
-      use_sim_time: true
+      use_sim_time: false
       update_frequency: 3.0
       publish_frequency: 1.0
       global_frame: custom_odom
@@ -141,15 +122,14 @@ local_costmap:
       resolution: 0.05
       transform_tolerance: 1.5
       always_send_full_costmap: True
-      # Am scos robot_radius. Lasam DOAR footprint-ul ca sa nu se bata cap in cap!
       footprint: "[[0.2, 0.2], [0.2, -0.2], [-0.2, -0.2], [-0.2, 0.2]]"
       footprint_padding: 0.05
       track_unknown_space: false
       plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 25.0      # Valoare marita ca sa subtiem zona gri
-        inflation_radius: 0.21         # Raza micsorata la limita de siguranta (30cm)
+        cost_scaling_factor: 25.0
+        inflation_radius: 0.30
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
@@ -170,7 +150,7 @@ local_costmap:
 global_costmap:
   global_costmap:
     ros__parameters:
-      use_sim_time: true
+      use_sim_time: false
       update_frequency: 1.0
       publish_frequency: 0.5
       rolling_window: false
@@ -178,7 +158,6 @@ global_costmap:
       robot_base_frame: "custom_base_link"
       transform_tolerance: 1.5
       always_send_full_costmap: True
-      # Am scos robot_radius. Lasam DOAR footprint-ul la fel ca la local.
       footprint: "[[0.2, 0.22], [0.2, -0.22], [-0.2, -0.22], [-0.2, 0.22]]"
       footprint_padding: 0.05
       resolution: 0.05
@@ -186,8 +165,8 @@ global_costmap:
       plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 25.0      # Valoare marita ca sa subtiem zona gri
-        inflation_radius: 0.45         # Raza micsorata la 30cm (fata de 44cm cat aveai)
+        cost_scaling_factor: 25.0
+        inflation_radius: 0.30
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True

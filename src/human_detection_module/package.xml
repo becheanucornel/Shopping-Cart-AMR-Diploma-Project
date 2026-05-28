@@ -3,24 +3,23 @@
 <package format="3">
   <name>human_detection_module</name>
   <version>0.0.0</version>
-  <description>Human detection package</description>
-  <maintainer email="becheanucornel28@gmail.com">becheanucornel</maintainer>
-  <license>MIT</license>
+  <description>YOLOv8 C++/TensorRT Node for Follow Me AMR</description>
+  <maintainer email="hephaestus@todo.todo">hephaestus</maintainer>
+  <license>TODO: License declaration</license>
 
-  <depend>rclpy</depend>
-  <depend>cv_bridge</depend>
-  <depend>python3-opencv</depend>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
   <depend>sensor_msgs</depend>
   <depend>geometry_msgs</depend>
-  <depend>std_srvs</depend>
-  <depend>python3-pip</depend>
+  <depend>cv_bridge</depend>
+  <depend>ament_index_cpp</depend>
+  <depend>libopencv-dev</depend>
 
-  <test_depend>ament_copyright</test_depend>
-  <test_depend>ament_flake8</test_depend>
-  <test_depend>ament_pep257</test_depend>
-  <test_depend>python3-pytest</test_depend>
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
 
   <export>
-    <build_type>ament_python</build_type>
+    <build_type>ament_cmake</build_type>
   </export>
 </package>

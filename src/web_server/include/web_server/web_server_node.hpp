@@ -109,6 +109,10 @@ private:
   std::string initialpose_frame_id_{"map"};
   double initialpose_cov_xy_{0.25};
   double initialpose_cov_yaw_{0.25};
+
+
+  bool tracking_confirmed_{false}; 
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr follow_cmd_sub_;
 };
 
 }  // namespace web_server
