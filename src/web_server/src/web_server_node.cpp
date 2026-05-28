@@ -37,6 +37,14 @@ WebServerNode::WebServerNode(const rclcpp::NodeOptions & options)
     resource_path_ = "./resource";
   }
 
+  // --- Configurare Cale XML pentru Follow Me ---
+  try {
+    follow_me_xml_path_ = ament_index_cpp::get_package_share_directory("system_bringup") + "/behavior_trees/follow_me.xml";
+  } catch (const std::exception & e) {
+    RCLCPP_ERROR(this->get_logger(), "Atenție: Nu am găsit pachetul system_bringup pentru XML-ul Follow Me: %s", e.what());
+    follow_me_xml_path_ = "";
+  }
+
   // Create ROS 2 publishers and subscribers
   odom_nav2_pub_ = this->create_publisher<nav_msgs::msg::Odometry>("/odom_nav2", 10);
   initialpose_pub_ = this->create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("/initialpose", 10);
@@ -45,7 +53,7 @@ WebServerNode::WebServerNode(const rclcpp::NodeOptions & options)
     tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(this);
   }
 
-  // Bridge web UI goals -> Nav2 NavigateToPose action (Păstrat ca mod fallback din consolă)
+  // Bridge web UI goals -> Nav2 NavigateToPose action
   nav_client_ = rclcpp_action::create_client<NavigateToPose>(this, "navigate_to_pose");
   goal_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
     "/ui/nav_goal", 10, std::bind(&WebServerNode::goal_pose_callback, this, std::placeholders::_1));
@@ -59,22 +67,23 @@ WebServerNode::WebServerNode(const rclcpp::NodeOptions & options)
     "/amcl_pose", 10, std::bind(&WebServerNode::amcl_callback, this, std::placeholders::_1));
 
   preempt_timer_ = this->create_wall_timer(
-    std::chrono::milliseconds(50),
-    std::bind(&WebServerNode::preempt_timer_cb, this));
+    std::chrono::milliseconds(50), std::bind(&WebServerNode::preempt_timer_cb, this));
 
-  // --- ADĂUGAT: Mode Management Setup ---
+  // --- Mode Management Setup ---
   mode_pub_ = this->create_publisher<std_msgs::msg::String>("/mode", 10);
   ui_mode_sub_ = this->create_subscription<std_msgs::msg::String>(
     "/ui/mode/absolute", 10, std::bind(&WebServerNode::ui_mode_callback, this, std::placeholders::_1));
 
-  // Publică starea robotului constant, astfel încât UI-ul să fie mereu la zi (ex. dacă deschizi interfața pe 2 telefoane)
   mode_publish_timer_ = this->create_wall_timer(
     std::chrono::milliseconds(1000), [this](){
       std_msgs::msg::String mode_msg;
       mode_msg.data = current_mode_;
       if(mode_pub_) mode_pub_->publish(mode_msg);
     });
-  // ---------------------------------------
+
+  // --- YOLO Target Subscriber (Follow Me) ---
+  yolo_target_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+    "/yolo/target_pose", 10, std::bind(&WebServerNode::yolo_target_callback, this, std::placeholders::_1));
 
   RCLCPP_INFO(this->get_logger(), "Starting web server on port %d", port_);
   RCLCPP_INFO(this->get_logger(), "Serving files from: %s", resource_path_.c_str());
@@ -84,24 +93,59 @@ WebServerNode::WebServerNode(const rclcpp::NodeOptions & options)
   server_thread_ = std::make_unique<std::thread>(&WebServerNode::run_server, this);
 }
 
-// --- ADĂUGAT: Implementarea callback-ului pentru schimbarea modului ---
 void WebServerNode::ui_mode_callback(const std_msgs::msg::String::SharedPtr msg)
 {
   RCLCPP_INFO(this->get_logger(), "Mod schimbat din Web UI: %s", msg->data.c_str());
   current_mode_ = msg->data;
 
-  // Când utilizatorul preia controlul MANUAL, oprim robotul din a mai naviga singur
-  if (current_mode_ == "MANUAL" && current_goal_handle_) {
-    RCLCPP_WARN(this->get_logger(), "Trecere în MANUAL: Anulez navigația autonomă curentă.");
+  if (current_mode_ != "FOLLOWING") {
+      is_following_active_ = false;
+  }
+
+  // Oprim robotul din a mai naviga singur când se schimbă modul forțat
+  if ((current_mode_ == "MANUAL" || current_mode_ == "IDLE") && current_goal_handle_) {
+    RCLCPP_WARN(this->get_logger(), "Anulez navigația autonomă curentă (trecere în %s).", current_mode_.c_str());
     (void)nav_client_->async_cancel_goal(current_goal_handle_);
   }
 
-  // Confirmăm UI-ului imediat că modul a fost schimbat
+  if (current_mode_ == "FOLLOWING") {
+      is_following_active_ = true;
+      RCLCPP_INFO(this->get_logger(), "Mod Follow Me Activat! Aștept target pe /yolo/target_pose");
+  }
+
   std_msgs::msg::String mode_msg;
   mode_msg.data = current_mode_;
   mode_pub_->publish(mode_msg);
 }
-// ----------------------------------------------------------------------
+
+void WebServerNode::yolo_target_callback(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
+{
+  // Ignoră comenzile de la cameră dacă modul Follow Me nu a fost apăsat în UI
+  if (!is_following_active_) {
+      return;
+  }
+
+  if (!nav_client_) {
+    RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "Nav2 action client not initialized");
+    return;
+  }
+
+  NavigateToPose::Goal goal;
+  goal.pose = *msg;
+  
+  // Forțează XML-ul de Follow Me (cel la 5Hz)
+  if (!follow_me_xml_path_.empty()) {
+      goal.behavior_tree = follow_me_xml_path_;
+  } else {
+      RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "Nu se găsește follow_me.xml!");
+  }
+
+  RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000, 
+      "Trimit update la Nav2 către om: x=%.2f, y=%.2f", goal.pose.pose.position.x, goal.pose.pose.position.y);
+
+  auto send_goal_options = rclcpp_action::Client<NavigateToPose>::SendGoalOptions();
+  nav_client_->async_send_goal(goal, send_goal_options);
+}
 
 void WebServerNode::send_pending_goal()
 {
@@ -111,7 +155,7 @@ void WebServerNode::send_pending_goal()
 
   NavigateToPose::Goal goal;
   goal.pose = pending_goal_pose_;
-  goal.behavior_tree = "";
+  goal.behavior_tree = ""; // Pentru Navigația normală (puncte pe hartă), folosește XML-ul default din YAML
   pending_goal_ = false;
 
   RCLCPP_INFO(this->get_logger(), "Forwarding goal to Nav2: frame=%s x=%.3f y=%.3f",
@@ -156,7 +200,6 @@ void WebServerNode::preempt_timer_cb()
     return;
   }
 
-  // Wait for previous goal handle to be cleared by result callback.
   if (current_goal_handle_) {
     return;
   }
@@ -177,11 +220,9 @@ void WebServerNode::goal_pose_callback(const geometry_msgs::msg::PoseStamped::Sh
     return;
   }
 
-  // Always treat the newest goal as the one we want.
   pending_goal_pose_ = *msg;
   pending_goal_ = true;
 
-  // If a goal is active, cancel it first.
   if (current_goal_handle_) {
     if (!cancel_in_progress_) {
       cancel_in_progress_ = true;
@@ -191,7 +232,6 @@ void WebServerNode::goal_pose_callback(const geometry_msgs::msg::PoseStamped::Sh
     return;
   }
 
-  // No active goal: send immediately.
   send_pending_goal();
 }
 
@@ -252,13 +292,11 @@ void WebServerNode::odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg)
   current_odom_ = *msg;
 
   if (auto_initialpose_from_odom_ && !initialpose_sent_ && initialpose_pub_) {
-    // Align AMCL/map to the simulator's odometry at startup (useful when RViz is off).
     geometry_msgs::msg::PoseWithCovarianceStamped init;
     init.header.stamp = msg->header.stamp;
     init.header.frame_id = initialpose_frame_id_;
     init.pose.pose = msg->pose.pose;
 
-    // Fill covariance (x, y, yaw only)
     init.pose.covariance.fill(0.0);
     init.pose.covariance[0] = initialpose_cov_xy_;
     init.pose.covariance[7] = initialpose_cov_xy_;
@@ -277,7 +315,6 @@ void WebServerNode::odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg)
     filtered.header.frame_id = odom_frame_id_;
     filtered.child_frame_id = base_frame_id_;
 
-    // Keep only planar components expected by Nav2/DWB
     filtered.twist.twist.linear.y = 0.0;
     filtered.twist.twist.linear.z = 0.0;
     filtered.twist.twist.angular.x = 0.0;
@@ -314,7 +351,6 @@ void WebServerNode::handle_session(tcp::socket socket)
 
     std::string path = std::string(req.target());
     
-    // Handle API endpoints
     if (path.find("/api/") == 0) {
       handle_api_request(path, socket);
       return;

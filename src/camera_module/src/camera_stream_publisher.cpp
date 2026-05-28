@@ -9,37 +9,40 @@
 class CameraStreamPublisherNode : public rclcpp::Node {
 public:
     CameraStreamPublisherNode() : Node("camera_stream_publisher_node") {
-        // Declare parameters
-        int camera_index = this->declare_parameter<int>("camera_index", 0);
-        int frame_width = this->declare_parameter<int>("frame_width", 640);
-        int frame_height = this->declare_parameter<int>("frame_height", 480);
-        int fps = this->declare_parameter<int>("fps", 30);
+    // Declare parameters
+    int camera_index = this->declare_parameter<int>("camera_index", 0);
+    int frame_width = this->declare_parameter<int>("frame_width", 640);
+    int frame_height = this->declare_parameter<int>("frame_height", 480);
+    int fps = this->declare_parameter<int>("fps", 30);
 
-        // Initialize Publisher
-        publisher_ = this->create_publisher<sensor_msgs::msg::Image>("camera", 10);
+    // MODIFICARE MAJORĂ 1: Folosim SensorDataQoS pentru streamuri video
+    rclcpp::QoS qos_profile = rclcpp::SensorDataQoS();
+    publisher_ = this->create_publisher<sensor_msgs::msg::Image>("camera", qos_profile);
 
-        // Build the GStreamer pipeline dynamically using parameters
-        std::string pipeline = 
-            "nvarguscamerasrc sensor-id=" + std::to_string(camera_index) + " ! "
-            "video/x-raw(memory:NVMM), width=1280, height=720, format=(string)NV12, framerate=" + std::to_string(fps) + "/1 ! "
-            "nvvidconv flip-method=0 ! "
-            "video/x-raw, width=" + std::to_string(frame_width) + ", height=" + std::to_string(frame_height) + ", format=(string)BGRx ! "
-            "videoconvert ! video/x-raw, format=(string)BGR ! appsink";
+    // MODIFICARE MAJORĂ 2: Adăugăm "drop=true max-buffers=1" la appsink
+    std::string pipeline = 
+        "nvarguscamerasrc sensor-id=" + std::to_string(camera_index) + " ! "
+        "video/x-raw(memory:NVMM), width=1280, height=720, format=(string)NV12, framerate=" + std::to_string(fps) + "/1 ! "
+        "nvvidconv flip-method=0 ! "
+        "video/x-raw, width=" + std::to_string(frame_width) + ", height=" + std::to_string(frame_height) + ", format=(string)BGRx ! "
+        "videoconvert ! video/x-raw, format=(string)BGR ! appsink drop=true max-buffers=1";
 
-        // Open camera
-        cap_.open(pipeline, cv::CAP_GSTREAMER);
+    // Open camera
+    cap_.open(pipeline, cv::CAP_GSTREAMER);
 
-        if (!cap_.isOpened()) {
-            RCLCPP_ERROR(this->get_logger(), "Could not open video stream with GStreamer!");
-        } else {
-            RCLCPP_INFO(this->get_logger(), "Camera opened: %dx%d @ %dfps", frame_width, frame_height, fps);
-        }
-
-        // CORRECTED: Bind now points to the actual class name
-        timer_ = this->create_wall_timer(
-                std::chrono::milliseconds(1000/fps),
-                std::bind(&CameraStreamPublisherNode::timer_callback, this));
+    if (!cap_.isOpened()) {
+        RCLCPP_ERROR(this->get_logger(), "Could not open video stream with GStreamer!");
+    } else {
+        RCLCPP_INFO(this->get_logger(), "Camera opened: %dx%d @ %dfps", frame_width, frame_height, fps);
     }
+
+    // MODIFICARE 3: Setăm timer-ul puțin mai rapid (ex: de două ori fps-ul). 
+    // Deoarece "cap_ >> frame" este blocant și avem drop=true, se va sincroniza natural cu hardware-ul.
+    int timer_rate = 1000 / (fps * 2); 
+    timer_ = this->create_wall_timer(
+            std::chrono::milliseconds(timer_rate),
+            std::bind(&CameraStreamPublisherNode::timer_callback, this));
+}
 
 private:
     void timer_callback() {

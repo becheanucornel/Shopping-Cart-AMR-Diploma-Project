@@ -8,7 +8,7 @@
 #include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "std_msgs/msg/empty.hpp"
-#include "std_msgs/msg/string.hpp" // ADĂUGAT: Pentru transmiterea modurilor (IDLE, MANUAL etc)
+#include "std_msgs/msg/string.hpp" // Pentru transmiterea modurilor (IDLE, MANUAL etc)
 #include "geometry_msgs/msg/transform_stamped.hpp"
 
 #include "tf2_ros/transform_broadcaster.h"
@@ -21,6 +21,7 @@
 #include <thread>
 #include <memory>
 #include <mutex>
+#include <string>
 
 namespace net = boost::asio;
 namespace beast = boost::beast;
@@ -52,8 +53,11 @@ private:
   void goal_pose_callback(const geometry_msgs::msg::PoseStamped::SharedPtr msg);
   void goal_cancel_callback(const std_msgs::msg::Empty::SharedPtr msg);
 
-  // ADĂUGAT: Callback pentru schimbarea modului din web
+  // Callback pentru schimbarea modului din web
   void ui_mode_callback(const std_msgs::msg::String::SharedPtr msg);
+
+  // --- ADĂUGAT: YOLO & Follow Me Callback ---
+  void yolo_target_callback(const geometry_msgs::msg::PoseStamped::SharedPtr msg);
 
   using NavigateToPose = nav2_msgs::action::NavigateToPose;
   using GoalHandleNavigateToPose = rclcpp_action::ClientGoalHandle<NavigateToPose>;
@@ -72,11 +76,16 @@ private:
   rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr amcl_pose_sub_;
   rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr initialpose_pub_;
 
-  // ADĂUGAT: Variabile pentru Mode Management
+  // Variabile pentru Mode Management
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr ui_mode_sub_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr mode_pub_;
   std::string current_mode_{"IDLE"};
   rclcpp::TimerBase::SharedPtr mode_publish_timer_;
+
+  // --- ADĂUGAT: Variabile Follow Me ---
+  bool is_following_active_{false};
+  std::string follow_me_xml_path_;
+  rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr yolo_target_sub_;
 
   rclcpp_action::Client<NavigateToPose>::SharedPtr nav_client_;
   GoalHandleNavigateToPose::SharedPtr current_goal_handle_;
