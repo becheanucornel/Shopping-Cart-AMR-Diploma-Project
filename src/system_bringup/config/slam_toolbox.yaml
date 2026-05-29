@@ -1,21 +1,17 @@
 slam_toolbox:
   ros__parameters:
-    # SLAM parameters
     use_sim_time: false
     odom_frame: custom_odom
     base_frame: custom_base_link
     map_frame: map
-    
-    # Increase processing capacity
+
     tf_buffer_size: 50
     transform_timeout: 1.0
     
-    # Skip more scans to reduce processing load
     scan_buffer_size: 3
     minimum_travel_distance: 1.0
     minimum_travel_heading: 1.0
     
-    # Solver parameters
     solver_plugin: solver_plugins::CeresSolver
     ceres_linear_solver_type: SPARSE_NORMAL_CHOLESKY
     ceres_preconditioner_type: SCHUR_JACOBI
@@ -23,7 +19,6 @@ slam_toolbox:
     ceres_dogleg_type: TRADITIONAL_DOGLEG
     ceres_loss_function: None
     
-    # Matcher parameters
     use_scan_matching: true
     use_scan_barycenter: true
     minimum_travel_distance: 0.5
@@ -31,18 +26,15 @@ slam_toolbox:
     scan_buffer_size: 10
     scan_buffer_discount: 0.3
     
-    # Loop closure parameters
     loop_search_maximum_distance: 3.0
     do_loop_closing: true
     loop_match_minimum_chain_size: 10
     maximum_distance_stronger_constraint: 0.0
     
-    # Correlation parameters
     correlation_search_space_dimension: 0.5
     correlation_search_space_smear: 0.03
     correlation_search_space_step_size: 0.05
     
-    # Scan matcher parameters
     distance_variance_penalty: 0.5
     angle_variance_penalty: 1.0
     fine_search_angle_offset: 0.00349

@@ -47,7 +47,7 @@ def generate_launch_description():
     declare_gui_arg                     = DeclareLaunchArgument('gui',                     default_value='false')
     declare_merge_scans_arg             = DeclareLaunchArgument('merge_scans',             default_value='true')
     declare_use_startup_delays_arg      = DeclareLaunchArgument('use_startup_delays',      default_value='true')
-    declare_publish_odom_tf_arg         = DeclareLaunchArgument('publish_odom_tf',         default_value='true')
+    declare_publish_odom_tf_arg         = DeclareLaunchArgument('publish_odom_tf',         default_value='false')  
     declare_nav_cruise_linear_scale_arg = DeclareLaunchArgument('nav_cruise_linear_scale', default_value='1.0')
     declare_nav_cruise_angular_scale_arg= DeclareLaunchArgument('nav_cruise_angular_scale',default_value='1.0')
     declare_nav_stuck_linear_scale_arg  = DeclareLaunchArgument('nav_stuck_linear_scale',  default_value='8.0')
@@ -57,10 +57,6 @@ def generate_launch_description():
     declare_nav_stuck_linear_x_arg      = DeclareLaunchArgument('nav_stuck_linear_x',      default_value='0.05')
     declare_nav_stuck_angular_z_arg     = DeclareLaunchArgument('nav_stuck_angular_z',     default_value='0.05')
     declare_enable_follow_arg           = DeclareLaunchArgument('enable_follow',           default_value='true')
-    # FIX 1: camera_width / target_height were declared but never used by any
-    # node — the detection node now reads focal_length_px and real heights as
-    # ROS parameters directly. Keeping the args for backwards-compat but they
-    # are no longer forwarded anywhere.
     declare_camera_width_arg            = DeclareLaunchArgument('camera_width',            default_value='640.0')
     declare_target_height_arg           = DeclareLaunchArgument('target_height',           default_value='280.0')
 
@@ -190,10 +186,6 @@ def generate_launch_description():
     )
 
     # ── Camera publisher ─────────────────────────────────────────────────────
-    # FIX 2: camera_module was completely missing from the launch file.
-    # The web UI MANUAL and FOLLOW panels both need /camera.
-    # The detection node also subscribes to /camera.
-    # executable name matches CMakeLists: video_stream_publisher
     camera_publisher = Node(
         package='camera_module',
         executable='video_stream_publisher',
@@ -213,7 +205,7 @@ def generate_launch_description():
         executable='rf2o_laser_odometry_node',
         name='rf2o_laser_odometry',
         output='screen',
-        arguments=['--ros-args', '--log-level', 'WARN'],
+        arguments=['--ros-args', '--log-level', 'ERROR'],
         parameters=[{
             'laser_scan_topic': '/scan',
             'odom_topic':       '/odom_rf2o',
@@ -235,7 +227,6 @@ def generate_launch_description():
     )
 
     # ── Web server ───────────────────────────────────────────────────────────
-    # FIX 3: jpeg_quality parameter exposed so it can be tuned without rebuild.
     web_server = Node(
         package='web_server',
         executable='web_server_node',
@@ -341,8 +332,6 @@ def generate_launch_description():
         executable='async_slam_toolbox_node',
         name='slam_toolbox',
         output='screen',
-        # FIX 4: slam_toolbox.yaml has use_sim_time: true hardcoded inside it.
-        # We override it here so it respects the launch argument.
         parameters=[LaunchConfiguration('slam_params_file'),
                     {'use_sim_time': LaunchConfiguration('use_sim_time'),
                      'map_start_at_dock': False}],
@@ -375,9 +364,6 @@ def generate_launch_description():
     )
 
     # ── ROSBridge ─────────────────────────────────────────────────────────────
-    # FIX 5: unsubscribe_timeout added. Without it, dead web clients leave
-    # subscriptions alive and the Jetson wastes bandwidth republishing
-    # map + scan + odom to nobody. 10 seconds is a reasonable grace period.
     rosbridge_websocket = Node(
         package='rosbridge_server',
         executable='rosbridge_websocket',
@@ -396,13 +382,10 @@ def generate_launch_description():
         executable='detection_node',
         name='yolo_tracker',
         output='screen',
-        # FIX 6: Pass calibration parameters from launch so they can be
-        # tuned without recompiling. These match the parameter names declared
-        # in detection_node.cpp.
         parameters=[{
             'confidence_threshold':  0.50,
             'nms_threshold':         0.45,
-            'focal_length_px':       500.0,   # <-- calibrate this for your lens
+            'focal_length_px':       500.0,
             'person_real_height_m':  1.70,
             'ball_real_height_m':    0.04,
             'min_box_height_px':     20,

@@ -9,8 +9,6 @@ ekf_filter_node:
     base_link_frame: custom_base_link
     world_frame: custom_odom
 
-    # odom0: Your raw wheel encoders (from your Python script)
-    # We only trust its X velocity (forward/back) and Yaw velocity (turning)
     odom0: /custom_odom_topic
     odom0_config: [false, false, false,
                    false, false, false,
@@ -18,8 +16,6 @@ ekf_filter_node:
                    false, false, true,
                    false, false, false]
 
-    # odom1: Your rf2o laser odometry
-    # We trust its absolute X, Y position, and Yaw orientation
     odom1: /odom_rf2o
     odom1_config: [true,  true,  false,
                    false, false, true,

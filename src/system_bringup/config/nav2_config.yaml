@@ -7,13 +7,18 @@ amcl:
     alpha4: 0.2
     alpha5: 0.2
     base_frame_id: "custom_base_link"
+    odom_frame_id: "custom_odom"        
     global_frame_id: "map"
+    scan_topic: "/scan"                 
     tf_broadcast: true
     set_initial_pose: true
     initial_pose.x: 0.0
     initial_pose.y: 0.0
     initial_pose.yaw: 0.0
     always_reset_initial_pose: true
+    min_particles: 500
+    max_particles: 2000
+    laser_model_type: "likelihood_field"
     beam_skip_distance: 0.5
     beam_skip_error_threshold: 0.9
     beam_skip_threshold: 0.3
@@ -22,12 +27,18 @@ amcl:
     laser_likelihood_max_dist: 2.0
     laser_max_range: 15.0
     laser_min_range: 0.1
+    laser_max_beams: 60
+    z_hit: 0.5
     z_short: 0.05
-    # FIX 1: Increased transform_tolerance from 1.5 to 2.0 to stop the
-    # "Message Filter dropping message" spam. AMCL was receiving laser scans
-    # before the EKF had published the odom→base_link TF. The larger tolerance
-    # gives the TF tree more time to become consistent at startup.
+    z_max: 0.05
+    z_rand: 0.5
+    sigma_hit: 0.2
     transform_tolerance: 2.0
+    update_min_d: 0.25
+    update_min_a: 0.2
+    resample_interval: 1
+    recovery_alpha_slow: 0.0
+    recovery_alpha_fast: 0.0
 
 bt_navigator:
   ros__parameters:
@@ -48,7 +59,7 @@ controller_server:
     min_x_velocity_threshold: 0.001
     min_y_velocity_threshold: 0.01
     min_theta_velocity_threshold: 0.001
-    failure_tolerance: 0.3
+    failure_tolerance: 3.0
     transform_tolerance: 1.5
     progress_checker_plugins: ["progress_checker"]
     goal_checker_plugins: ["general_goal_checker"]
@@ -64,7 +75,7 @@ controller_server:
       yaw_goal_tolerance: 0.5
     FollowPath:
       plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
-      desired_linear_vel: 0.8
+      desired_linear_vel: 0.5
       lookahead_dist: 0.6
       min_lookahead_dist: 0.5
       max_lookahead_dist: 1.2
@@ -77,7 +88,7 @@ controller_server:
       use_regulated_linear_velocity_scaling: true
       regulated_linear_scaling_min_radius: 1.5
       regulated_linear_scaling_min_speed: 0.1
-      max_allowed_time_to_collision_up_to_carrot: 0.5
+      max_allowed_time_to_collision_up_to_carrot: 2.0
       transform_tolerance: 0.5
       use_cost_regulated_linear_velocity_scaling: true
       cost_scaling_dist: 0.4
@@ -102,10 +113,6 @@ behavior_server:
   ros__parameters:
     use_sim_time: false
     costmap_topic: local_costmap/costmap_raw
-    # FIX 2: Plugin class names in Nav2 Humble use forward slash (nav2_behaviors/Spin)
-    # NOT double-colon (nav2_behaviors::Spin). The double-colon form is what
-    # caused the FATAL crash: "class nav2_behaviors::Spin does not exist".
-    # The error log itself told us: "Declared types are nav2_behaviors/Spin ..."
     behavior_plugins: ["spin", "backup", "drive_on_heading", "wait"]
     spin:
       plugin: "nav2_behaviors/Spin"
@@ -130,14 +137,14 @@ local_costmap:
       resolution: 0.05
       transform_tolerance: 1.5
       always_send_full_costmap: True
-      footprint: "[[0.2, 0.2], [0.2, -0.2], [-0.2, -0.2], [-0.2, 0.2]]"
-      footprint_padding: 0.05
+      footprint: "[[0.175, 0.175], [0.175, -0.175], [-0.175, -0.175], [-0.175, 0.175]]"
+      footprint_padding: 0.01
       track_unknown_space: false
       plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 25.0
-        inflation_radius: 0.30
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.20
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
@@ -166,15 +173,15 @@ global_costmap:
       robot_base_frame: "custom_base_link"
       transform_tolerance: 1.5
       always_send_full_costmap: True
-      footprint: "[[0.2, 0.22], [0.2, -0.22], [-0.2, -0.22], [-0.2, 0.22]]"
-      footprint_padding: 0.05
+      footprint: "[[0.175, 0.175], [0.175, -0.175], [-0.175, -0.175], [-0.175, 0.175]]"
+      footprint_padding: 0.01
       resolution: 0.05
       track_unknown_space: false
       plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 25.0
-        inflation_radius: 0.30
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.20
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True

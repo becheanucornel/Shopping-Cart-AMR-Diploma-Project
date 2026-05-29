@@ -9,10 +9,8 @@ import threading
 import math
 import os
 
-# Suppress the pinmux warning globally
 os.environ["JETSON_GPIO_PINMUX_CHECK"] = "0"
 
-# --- Kept Exactly from your Test Script ---
 class SoftwarePWM:
     """A custom class to simulate PWM on standard digital I/O pins."""
     def __init__(self, pin, frequency):
@@ -159,16 +157,9 @@ class AmrMotorNode(Node):
 
         # --- Timers ---
         self.timer = self.create_timer(0.05, self.update_odometry) # 20Hz Odometry
-        #self.debug_timer = self.create_timer(1.0, self.print_debug_info) # 1Hz Tick Logger
 
         self.get_logger().info("AMR Motor Node Ready. Listening to /cmd_vel and Encoders...")
 
-    # --- Debug Logger ---
-    #def print_debug_info(self):
-    #    """Prints #he raw hardware tick counts once per second."""
-    #    self.get_logger().info(f"TICKS | Left: {self.left_ticks} | Right: {self.right_ticks}")
-        
-    # --- TRUE Quadrature Encoder Callbacks (Filtered) ---
     # --- Command-Directed Encoder Callbacks (Filtered) ---
     def left_tick_cb(self, channel):
         current_time = time.perf_counter_ns()
@@ -274,22 +265,9 @@ class AmrMotorNode(Node):
 
         self.last_time = current_time
 
-        # 1. Calculează quaternionul PRIMA DATĂ
         q_z = math.sin(self.theta / 2.0)
         q_w = math.cos(self.theta / 2.0)
 
-        # 2. Folosește-l pentru Transform (TF2)
-        t = TransformStamped()
-        t.header.stamp = current_time.to_msg()
-        t.header.frame_id = self.odom_frame
-        t.child_frame_id = self.base_frame
-        t.transform.translation.x = self.x
-        t.transform.translation.y = self.y
-        t.transform.rotation.z = q_z
-        t.transform.rotation.w = q_w
-        self.tf_broadcaster.sendTransform(t)
-
-        # 3. Folosește-l pentru mesajul de Odometrie
         odom = Odometry()
         odom.header.stamp = current_time.to_msg()
         odom.header.frame_id = self.odom_frame

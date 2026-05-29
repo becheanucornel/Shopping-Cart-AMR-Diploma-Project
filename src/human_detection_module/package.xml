@@ -2,9 +2,9 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>human_detection_module</name>
-  <version>0.0.0</version>
+  <version>1.0.0</version>
   <description>YOLOv8 C++ Detection Node for Follow-Me AMR</description>
-  <maintainer email="hephaestus@todo.todo">hephaestus</maintainer>
+  <maintainer email="becheanucornel28@gmail.com">becheanucornel</maintainer>
   <license>TODO: License declaration</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>

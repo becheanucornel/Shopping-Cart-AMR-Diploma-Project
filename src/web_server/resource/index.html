@@ -386,14 +386,11 @@ input[type=number]::placeholder { color: var(--muted); }
       <div class="corner-deco tl"></div><div class="corner-deco tr"></div>
       <div class="corner-deco bl"></div><div class="corner-deco br"></div>
       <div class="cam-label">LIVE FEED · /camera</div>
+      <!-- No onerror hide — MJPEG streams take a moment to buffer the first
+           frame. Hiding on error means a brief startup delay permanently
+           shows "NO SIGNAL". The img just stays visible; blank until ready. -->
       <img id="camStream" src="/stream/camera" alt=""
-           onerror="this.style.display='none'; document.getElementById('camPlaceholder').style.display='flex'">
-      <div id="camPlaceholder" class="stream-placeholder" style="display:none">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
-          <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 3l-4 4-4-4"/>
-        </svg>
-        NO SIGNAL
-      </div>
+           style="width:100%;height:100%;object-fit:cover;display:block">
     </div>
 
     <div class="ctrl-pane">
@@ -471,7 +468,11 @@ input[type=number]::placeholder { color: var(--muted); }
       <div class="corner-deco tl"></div><div class="corner-deco tr"></div>
       <div class="corner-deco bl"></div><div class="corner-deco br"></div>
       <div class="cam-label">DETECTION FEED · /yolo/debug_image</div>
-      <img id="debugStream" src="" alt="" style="width:100%;height:100%;object-fit:contain;display:block">
+      <!-- src set at page load so the MJPEG connection is established early.
+           The detection node publishes continuously; the stream will show
+           the camera feed with bounding boxes as soon as inference runs. -->
+      <img id="debugStream" src="/stream/debug" alt=""
+           style="width:100%;height:100%;object-fit:contain;display:block">
     </div>
 
     <div class="follow-bar">
@@ -549,13 +550,10 @@ function setMode(mode) {
 
   // Side effects
   if (mode === 'FOLLOWING') {
-    // Load debug stream when entering follow mode
-    // No cache-bust query string — the server now strips it anyway,
-    // but keeping the src clean avoids the "file not found" log noise.
-    document.getElementById('debugStream').src = '/stream/debug';
+    // Stream is already connected from page load (src="/stream/debug").
+    // Nothing to do here — the MJPEG connection stays open continuously.
   }
   if (prev === 'FOLLOWING') {
-    document.getElementById('debugStream').src = '';
     resetFollowUI();
   }
 

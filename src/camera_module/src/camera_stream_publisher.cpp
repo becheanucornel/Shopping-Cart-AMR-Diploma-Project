@@ -15,20 +15,14 @@ public:
     int frame_height = this->declare_parameter<int>("frame_height", 480);
     int fps = this->declare_parameter<int>("fps", 30);
 
-    // MODIFICARE MAJORĂ 1: Folosim SensorDataQoS pentru streamuri video
     rclcpp::QoS qos_profile = rclcpp::SensorDataQoS();
     publisher_ = this->create_publisher<sensor_msgs::msg::Image>("camera", qos_profile);
 
-    // MODIFICARE MAJORĂ 2: Adăugăm "drop=true max-buffers=1" la appsink
-    // Ensure your ROS 2 'fps' parameter is strictly set to 30 for this to work
     std::string pipeline = 
         "nvarguscamerasrc sensor-id=" + std::to_string(camera_index) + " ! "
-        // Use the maximum FOV binned mode supported by the hardware
         "video/x-raw(memory:NVMM), width=1640, height=1232, format=(string)NV12, framerate=30/1 ! "
-        // Hardware scaling down to your 640x480 ROS parameter
         "nvvidconv flip-method=0 ! "
         "video/x-raw, width=" + std::to_string(frame_width) + ", height=" + std::to_string(frame_height) + ", format=(string)BGRx ! "
-        // Convert to standard BGR for OpenCV / YOLOv8
         "videoconvert ! video/x-raw, format=(string)BGR ! appsink drop=true max-buffers=1";
 
     // Open camera
@@ -39,9 +33,7 @@ public:
     } else {
         RCLCPP_INFO(this->get_logger(), "Camera opened: %dx%d @ %dfps", frame_width, frame_height, fps);
     }
-
-    // MODIFICARE 3: Setăm timer-ul puțin mai rapid (ex: de două ori fps-ul). 
-    // Deoarece "cap_ >> frame" este blocant și avem drop=true, se va sincroniza natural cu hardware-ul.
+    
     int timer_rate = 1000 / (fps * 2); 
     timer_ = this->create_wall_timer(
             std::chrono::milliseconds(timer_rate),

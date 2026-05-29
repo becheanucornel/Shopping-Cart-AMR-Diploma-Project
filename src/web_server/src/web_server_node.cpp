@@ -1,13 +1,3 @@
-// ============================================================
-// web_server_node.cpp  —  v2 with MJPEG streaming
-//
-// New vs previous version:
-//  - /stream/camera  → MJPEG stream of raw /camera topic
-//  - /stream/debug   → MJPEG stream of /yolo/debug_image topic
-//    (bounding boxes drawn by detection_node and published there)
-//  - /api/robot/mode endpoint added
-//  - cv_bridge + OpenCV added for JPEG encoding
-// ============================================================
 
 #include "web_server/web_server_node.hpp"
 #include "ament_index_cpp/get_package_share_directory.hpp"
@@ -477,11 +467,11 @@ void WebServerNode::handle_mjpeg_stream(
       }
 
       if (jpeg.empty()) {
-        // No frame yet — send a small black placeholder
-        cv::Mat placeholder(240, 320, CV_8UC3, cv::Scalar(20, 20, 20));
-        cv::putText(placeholder, "Waiting for stream...",
-          cv::Point(20, 120), cv::FONT_HERSHEY_SIMPLEX,
-          0.6, cv::Scalar(100, 100, 100), 1);
+        // No frame yet from ROS — show a minimal placeholder
+        cv::Mat placeholder(240, 320, CV_8UC3, cv::Scalar(15, 15, 15));
+        cv::putText(placeholder, "Connecting...",
+          cv::Point(70, 125), cv::FONT_HERSHEY_SIMPLEX,
+          0.7, cv::Scalar(0, 230, 118), 1);
         cv::imencode(".jpg", placeholder, jpeg,
                      {cv::IMWRITE_JPEG_QUALITY, 60});
       }

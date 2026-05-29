@@ -128,7 +128,6 @@ private:
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 
   // ── MJPEG stream state ────────────────────────────────────────────────────
-  // Latest JPEG frames, protected by their own mutexes for lock-free reads
   std::mutex         camera_frame_mutex_;
   std::vector<uchar> latest_camera_jpeg_;
 
@@ -138,7 +137,6 @@ private:
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr camera_sub_;
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr debug_image_sub_;
 
-  // MJPEG stream quality (0-100)
   int jpeg_quality_{75};
 };
 

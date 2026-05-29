@@ -1,27 +1,3 @@
-// ============================================================
-// detection_node.cpp  —  TensorRT 10.3 version
-// Target: NVIDIA Jetson Orin Nano Super, CUDA 12.6, TRT 10.3.0
-//
-// Pipeline:
-//   /camera (sensor_msgs/Image)
-//       → letterbox resize to 640×640
-//       → CUDA pre-process (normalize to [0,1], NCHW)
-//       → TensorRT FP16 inference (yolov8n.engine)
-//       → YOLOv8 post-process (transpose [1,84,8400]→[8400,84], NMS)
-//       → pinhole distance + lateral estimate
-//       → /yolo/target_pose (geometry_msgs/PoseStamped, frame=camera_link)
-//
-// First-run engine build:
-//   If yolov8n.engine does not exist next to yolov8n.onnx, the node
-//   builds it automatically (takes ~90 s on the Orin Nano Super).
-//   Subsequent launches load the cached .engine file instantly.
-//
-// Service:
-//   /detector/set_class  (std_srvs/SetBool)
-//   false → track person (class 0)
-//   true  → track sports ball (class 32)
-// ============================================================
-
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
@@ -46,6 +22,7 @@
 #include <cmath>
 #include <algorithm>
 #include <stdexcept>
+#include <filesystem>
 
 using std::placeholders::_1;
 using std::placeholders::_2;
@@ -164,14 +141,36 @@ public:
     // ── Paths ───────────────────────────────────────────────────────────────
     std::string share =
       ament_index_cpp::get_package_share_directory("human_detection_module");
-    onnx_path_   = share + "/model/yolov8n.onnx";
-    engine_path_ = share + "/model/yolov8n.engine";
+    onnx_path_ = share + "/model/yolov8n.onnx";
+
+    // FIX: Engine file must be written to a WRITABLE directory.
+    // The install/share directory is read-only after `colcon build`.
+    // Writing there silently fails (ofstream opens but writes nothing),
+    // so the engine is never cached → rebuilt from scratch every launch
+    // → build fails after ~4s → node crashes before spinning → no service.
+    // Solution: store the engine in ~/.ros/human_detection/ which is always
+    // writable and survives across launches and rebuilds.
+    const char* home = std::getenv("HOME");
+    std::string engine_dir = std::string(home ? home : "/tmp") + "/.ros/human_detection";
+    // Create directory if it doesn't exist
+    std::filesystem::create_directories(engine_dir);
+    engine_path_ = engine_dir + "/yolov8n.engine";
 
     // ── Build or load TensorRT engine ───────────────────────────────────────
-    init_tensorrt();
-
-    // ── Allocate CUDA buffers ───────────────────────────────────────────────
-    allocate_buffers();
+    // Wrapped in try-catch: if TRT init fails the node still spins,
+    // publishes placeholder debug frames, and the service stays alive.
+    // This prevents the "service does not exist" error in the browser.
+    trt_ready_ = false;
+    try {
+      init_tensorrt();
+      allocate_buffers();
+      trt_ready_ = true;
+      RCLCPP_INFO(get_logger(), "TensorRT ready. Inference enabled.");
+    } catch (const std::exception & e) {
+      RCLCPP_ERROR(get_logger(),
+        "TRT init failed: %s — node will publish placeholder frames only.",
+        e.what());
+    }
 
     // ── Service ─────────────────────────────────────────────────────────────
     srv_ = create_service<std_srvs::srv::SetBool>(
@@ -231,6 +230,7 @@ private:
   // ── Config ─────────────────────────────────────────────────────────────────
   std::string onnx_path_;
   std::string engine_path_;
+  bool        trt_ready_{false};
   int         target_class_id_;
   double      conf_thresh_;
   double      nms_thresh_;
@@ -289,11 +289,11 @@ private:
       nvinfer1::createInferBuilder(trt_logger_));
     if (!builder) throw std::runtime_error("createInferBuilder failed");
 
-    // Explicit batch (required for YOLOv8 ONNX)
+    // TRT10: explicit batch is now the default, flag value 0 is correct.
+    // kEXPLICIT_BATCH is deprecated in TRT10 but still works; use 0U directly
+    // to suppress the deprecation warning.
     auto network = std::unique_ptr<nvinfer1::INetworkDefinition>(
-      builder->createNetworkV2(
-        1U << static_cast<uint32_t>(
-          nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH)));
+      builder->createNetworkV2(0U));
     if (!network) throw std::runtime_error("createNetworkV2 failed");
 
     auto parser = std::unique_ptr<nvonnxparser::IParser>(
@@ -503,6 +503,31 @@ private:
       return;
     }
 
+    // If TRT engine is not ready yet (still building or failed),
+    // publish the raw camera frame with a status overlay so the
+    // browser stream is live immediately rather than showing "Waiting".
+    if (!trt_ready_) {
+      cv::Mat overlay = frame.clone();
+      const std::string msg_text = "Building TRT engine, please wait...";
+      int baseline = 0;
+      cv::Size ts = cv::getTextSize(msg_text, cv::FONT_HERSHEY_SIMPLEX, 0.7, 2, &baseline);
+      cv::Point origin((overlay.cols - ts.width) / 2, overlay.rows / 2);
+      cv::rectangle(overlay,
+        cv::Point(origin.x - 8, origin.y - ts.height - 8),
+        cv::Point(origin.x + ts.width + 8, origin.y + baseline + 8),
+        cv::Scalar(0, 0, 0), cv::FILLED);
+      cv::putText(overlay, msg_text, origin,
+        cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 230, 118), 2);
+
+      cv_bridge::CvImage cv_img;
+      cv_img.header.stamp    = msg->header.stamp;
+      cv_img.header.frame_id = "camera_link";
+      cv_img.encoding        = sensor_msgs::image_encodings::BGR8;
+      cv_img.image           = overlay;
+      debug_pub_->publish(*cv_img.toImageMsg());
+      return;
+    }
+
     const int orig_w = frame.cols;
     const int orig_h = frame.rows;
 
@@ -549,8 +574,12 @@ private:
           cv::FONT_HERSHEY_SIMPLEX, 0.55, cv::Scalar(0, 0, 0), 1);
       }
 
-      // Always publish debug image (even when no detections, so stream stays live)
-      if (debug_pub_->get_subscription_count() > 0) {
+      // Always publish debug image regardless of subscriber count.
+      // Removing the get_subscription_count() gate because DDS discovery
+      // between detection_node and web_server is not instant — the count
+      // can read 0 for several frames after startup even though web_server
+      // is already subscribed, causing the stream to never start.
+      {
         cv_bridge::CvImage cv_img;
         cv_img.header.stamp    = msg->header.stamp;
         cv_img.header.frame_id = "camera_link";

@@ -231,9 +231,12 @@ private:
                 }
             }
         } else if (current_mode_ == "FOLLOWING") {
-            if ((now - last_follow_cmd_time_) < timeout) {
-                out = last_follow_cmd_;
-                // YOLO visual servoing can be scaled here in the future if needed
+            // FOLLOWING drives the robot via Nav2's FollowPath controller output
+            // (published on /cmd_vel_nav2), NOT /cmd_vel_follow.
+            // The follow_me.xml BT runs FollowPath which outputs to /cmd_vel_nav2.
+            // /cmd_vel_follow is a legacy topic that nothing publishes to.
+            if ((now - last_nav_cmd_time_) < timeout) {
+                out = last_nav_cmd_;
             }
         }
         

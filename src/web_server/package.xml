@@ -2,9 +2,9 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>web_server</name>
-  <version>0.0.0</version>
+  <version>1.0.0</version>
   <description>Web server for robot control</description>
-  <maintainer email="apollo@example.com">apollo</maintainer>
+  <maintainer email="becheanucornel28@gmail.com">becheanucornel</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>

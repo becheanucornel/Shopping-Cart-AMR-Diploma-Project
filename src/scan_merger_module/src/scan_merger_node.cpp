@@ -9,8 +9,6 @@
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"
 #include "geometry_msgs/msg/transform_stamped.hpp"
-
-// TF2 includes
 #include "tf2_ros/transform_listener.h"
 #include "tf2_ros/buffer.h"
 #include "tf2/LinearMath/Transform.h"
@@ -48,7 +46,6 @@ public:
             subs_.push_back(this->create_subscription<sensor_msgs::msg::LaserScan>(topics_[i], 10, callback));
         }
 
-        // --- PRE-ALLOCATE THE MERGED MESSAGE ONCE ---
         const double resolution_deg = 0.5; 
         merged_msg_.angle_increment = resolution_deg * M_PI / 180.0;
         merged_msg_.angle_min = -M_PI;
@@ -111,14 +108,11 @@ private:
 
         const tf2::Transform& transform = cached_transforms_[i];
 
-        // --- MATH LOOP ---
         for (size_t j = 0; j < scan->ranges.size(); ++j) {
             float r = scan->ranges[j];
 
-            // 1. Handle Invalid Data (NaN/Inf) immediately
             if (std::isnan(r) || std::isinf(r)) continue;
 
-            // 2. Chassis Masking
             double angle = scan->angle_min + j * scan->angle_increment;
             double x = r * std::cos(angle);
             double y = r * std::sin(angle);
@@ -126,15 +120,12 @@ private:
             const float mask_radius = 0.25f; 
             if (std::hypot(x, y) < mask_radius) continue;
 
-            // 3. Transform to base frame
             tf2::Vector3 point_local(x, y, 0.0);
             tf2::Vector3 point_base = transform * point_local;
 
-            // 4. Convert back to polar
             double merged_r = std::hypot(point_base.x(), point_base.y());
             double merged_angle = std::atan2(point_base.y(), point_base.x());
 
-            // 5. Update merged ranges
             if (merged_r >= merged_msg_.range_min && merged_r <= merged_msg_.range_max) {
                 int index = static_cast<int>(std::round((merged_angle - merged_msg_.angle_min) / merged_msg_.angle_increment));
                 if (index >= 0 && index < num_points_) {
@@ -153,7 +144,7 @@ private:
     std::string output_frame_id_;
     int num_points_;
 
-    sensor_msgs::msg::LaserScan merged_msg_; // Persistent memory
+    sensor_msgs::msg::LaserScan merged_msg_;
 
     std::vector<sensor_msgs::msg::LaserScan::SharedPtr> latest_scans_;
     std::vector<rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr> subs_;
