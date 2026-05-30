@@ -1,3 +1,27 @@
+// ============================================================
+// detection_node.cpp  —  TensorRT 10.3 version
+// Target: NVIDIA Jetson Orin Nano Super, CUDA 12.6, TRT 10.3.0
+//
+// Pipeline:
+//   /camera (sensor_msgs/Image)
+//       → letterbox resize to 640×640
+//       → CUDA pre-process (normalize to [0,1], NCHW)
+//       → TensorRT FP16 inference (yolov8n.engine)
+//       → YOLOv8 post-process (transpose [1,84,8400]→[8400,84], NMS)
+//       → pinhole distance + lateral estimate
+//       → /yolo/target_pose (geometry_msgs/PoseStamped, frame=camera_link)
+//
+// First-run engine build:
+//   If yolov8n.engine does not exist next to yolov8n.onnx, the node
+//   builds it automatically (takes ~90 s on the Orin Nano Super).
+//   Subsequent launches load the cached .engine file instantly.
+//
+// Service:
+//   /detector/set_class  (std_srvs/SetBool)
+//   false → track person (class 0)
+//   true  → track sports ball (class 32)
+// ============================================================
+
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
@@ -186,7 +210,7 @@ public:
 
     // ── Pub / Sub ───────────────────────────────────────────────────────────
     image_sub_ = create_subscription<sensor_msgs::msg::Image>(
-      "/camera", 10,
+      "/camera", rclcpp::SensorDataQoS(),
       std::bind(&DetectionNodeCpp::image_callback, this, _1));
 
     target_pub_ = create_publisher<geometry_msgs::msg::PoseStamped>(

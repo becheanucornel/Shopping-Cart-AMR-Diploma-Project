@@ -11,8 +11,8 @@ public:
     CameraStreamPublisherNode() : Node("camera_stream_publisher_node") {
     // Declare parameters
     int camera_index = this->declare_parameter<int>("camera_index", 0);
-    int frame_width = this->declare_parameter<int>("frame_width", 640);
-    int frame_height = this->declare_parameter<int>("frame_height", 480);
+    int frame_width = this->declare_parameter<int>("frame_width", 1920);
+    int frame_height = this->declare_parameter<int>("frame_height", 1080);
     int fps = this->declare_parameter<int>("fps", 30);
 
     rclcpp::QoS qos_profile = rclcpp::SensorDataQoS();
@@ -20,7 +20,7 @@ public:
 
     std::string pipeline = 
         "nvarguscamerasrc sensor-id=" + std::to_string(camera_index) + " ! "
-        "video/x-raw(memory:NVMM), width=1640, height=1232, format=(string)NV12, framerate=30/1 ! "
+        "video/x-raw(memory:NVMM), width=1920, height=1080, format=(string)NV12, framerate=30/1 ! "
         "nvvidconv flip-method=0 ! "
         "video/x-raw, width=" + std::to_string(frame_width) + ", height=" + std::to_string(frame_height) + ", format=(string)BGRx ! "
         "videoconvert ! video/x-raw, format=(string)BGR ! appsink drop=true max-buffers=1";

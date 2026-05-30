@@ -468,9 +468,6 @@ input[type=number]::placeholder { color: var(--muted); }
       <div class="corner-deco tl"></div><div class="corner-deco tr"></div>
       <div class="corner-deco bl"></div><div class="corner-deco br"></div>
       <div class="cam-label">DETECTION FEED · /yolo/debug_image</div>
-      <!-- src set at page load so the MJPEG connection is established early.
-           The detection node publishes continuously; the stream will show
-           the camera feed with bounding boxes as soon as inference runs. -->
       <img id="debugStream" src="/stream/debug" alt=""
            style="width:100%;height:100%;object-fit:contain;display:block">
     </div>

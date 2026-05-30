@@ -57,8 +57,8 @@ def generate_launch_description():
     declare_nav_stuck_linear_x_arg      = DeclareLaunchArgument('nav_stuck_linear_x',      default_value='0.05')
     declare_nav_stuck_angular_z_arg     = DeclareLaunchArgument('nav_stuck_angular_z',     default_value='0.05')
     declare_enable_follow_arg           = DeclareLaunchArgument('enable_follow',           default_value='true')
-    declare_camera_width_arg            = DeclareLaunchArgument('camera_width',            default_value='640.0')
-    declare_target_height_arg           = DeclareLaunchArgument('target_height',           default_value='280.0')
+    declare_camera_width_arg            = DeclareLaunchArgument('camera_width',            default_value='1920.0')
+    declare_target_height_arg           = DeclareLaunchArgument('target_height',           default_value='1080.0')
 
     # ── Conditions ──────────────────────────────────────────────────────────
     not_view_or_ui = PythonExpression([

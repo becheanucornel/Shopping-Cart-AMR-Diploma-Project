@@ -25,7 +25,6 @@ public:
 
     ModeManager() : Node("mode_manager")
     {
-        // Declarare parametrii
         this->declare_parameter<double>("nav_cruise_linear_scale", 1.0);
         this->declare_parameter<double>("nav_cruise_angular_scale", 1.0);
         this->declare_parameter<double>("nav_linear_scale", 1.0);
@@ -39,7 +38,6 @@ public:
         this->declare_parameter<std::string>("map_save_path", "/tmp/saved_map");
         this->declare_parameter<std::string>("map_yaml_path", "/tmp/map.yaml");
 
-        // Citire parametrii
         nav_cruise_linear_scale_ = this->get_parameter("nav_cruise_linear_scale").as_double();
         nav_cruise_angular_scale_ = this->get_parameter("nav_cruise_angular_scale").as_double();
         nav_linear_scale_ = this->get_parameter("nav_linear_scale").as_double();
@@ -57,13 +55,13 @@ public:
         mode_publisher_ = this->create_publisher<std_msgs::msg::String>("/mode", 10);
         cmd_vel_publisher_ = this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
 
-        // Subscriberi
         teleop_subscriber_ = this->create_subscription<geometry_msgs::msg::Twist>(
             "/cmd_vel_teleop", 10, std::bind(&ModeManager::teleop_callback, this, _1));
 
         nav_cmd_subscriber_ = this->create_subscription<geometry_msgs::msg::Twist>(
             "/cmd_vel_nav2", 10, std::bind(&ModeManager::nav_cmd_callback, this, _1));
 
+        // /cmd_vel_follow kept for future use but FOLLOWING mode now uses /cmd_vel_nav2
         follow_cmd_subscriber_ = this->create_subscription<geometry_msgs::msg::Twist>(
             "/cmd_vel_follow", 10, std::bind(&ModeManager::follow_cmd_callback, this, _1));
 
@@ -90,7 +88,6 @@ private:
     void R_INFO(const std::string &msg) { RCLCPP_INFO(this->get_logger(), "%s", msg.c_str()); }
     void R_ERROR(const std::string &msg) { RCLCPP_ERROR(this->get_logger(), "%s", msg.c_str()); }
 
-    // Membri
     std::string current_mode_;
     std::vector<std::string> modes_;
     double nav_cruise_linear_scale_, nav_cruise_angular_scale_, nav_linear_scale_, nav_angular_scale_;
@@ -102,7 +99,6 @@ private:
     rclcpp::Time last_nav_cmd_time_{0, 0, RCL_ROS_TIME};
     rclcpp::Time last_follow_cmd_time_{0, 0, RCL_ROS_TIME};
 
-    // Pub/Sub/Action
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr mode_publisher_;
     rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_publisher_;
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr teleop_subscriber_, nav_cmd_subscriber_, follow_cmd_subscriber_;
@@ -113,7 +109,6 @@ private:
     GoalHandleNavigateToPose::SharedPtr current_goal_handle_;
     rclcpp::TimerBase::SharedPtr cmd_vel_timer_;
 
-    // Callbacks
     void cancel_active_navigation() {
         if (current_goal_handle_) {
             nav_to_pose_client_->async_cancel_goal(current_goal_handle_);
@@ -148,6 +143,7 @@ private:
     }
 
     void ui_goal_callback(const geometry_msgs::msg::PoseStamped::SharedPtr msg) {
+        (void)msg;
         R_INFO("Nav goal primit în Mode Manager.");
     }
 
@@ -156,45 +152,34 @@ private:
         std::string target = msg->data;
         R_INFO("COMANDA PRIMITA: " + target + " (Stare actuala: " + current_mode_ + ")");
 
-        // Iesirea din MAPPING: Oprim SLAM, logam noua harta, repornim AMCL
         if (current_mode_ == "MAPPING" && target != "MAPPING") {
             R_INFO("Iesire din modul MAPPING. Salvez harta si opresc SLAM...");
-            
-            // 1. Salvăm harta
             std::string save_path = this->get_parameter("map_save_path").as_string();
             std::string yaml_path = this->get_parameter("map_yaml_path").as_string();
-    
-            // Use dynamic string construction
             std::string save_cmd = "ros2 run nav2_map_server map_saver_cli -f " + save_path + " --ros-args -p save_map_timeout:=10.0";
             std::system(save_cmd.c_str());
-
-            // 2. Oprim curat SLAM
             std::system("pkill -2 -f slam_toolbox");
             std::system("pkill -2 -f async_slam_toolbox_node");
             std::system("sleep 2");
-
-            // 3. Reactivăm localizarea (AMCL și Map Server) folosind Lifecycle Manager
             R_INFO("Re-activez sistemul de localizare AMCL...");
             std::system("ros2 lifecycle set /map_server activate &");
             std::system("ros2 lifecycle set /amcl activate &");
-
-            // 4. Încărcăm noua hartă direct în map_server
             std::string load_cmd = "ros2 service call /map_server/load_map nav2_msgs/srv/LoadMap \"{map_url: '" + yaml_path + "'}\" &";
             std::system(load_cmd.c_str());
         }
 
         if (target != current_mode_) {
-            if (current_mode_ == "NAVIGATION") cancel_active_navigation();
+            if (current_mode_ == "NAVIGATION" || current_mode_ == "FOLLOWING") {
+                cancel_active_navigation();
+            }
             current_mode_ = target;
             publish_current_mode();
 
-            // Intrarea in MAPPING: Adormim AMCL si Map Server ca sa lasam SLAM sa controleze TF-ul
             if (target == "MAPPING") {
                 R_INFO("Dezactivez AMCL temporar si pornesc SLAM...");
                 std::system("ros2 lifecycle set /amcl deactivate");
                 std::system("ros2 lifecycle set /map_server deactivate");
                 std::system("sleep 1");
-                
                 std::system("ros2 launch slam_toolbox online_async_launch.py use_sim_time:=true &");
             }
             cmd_vel_publisher_->publish(geometry_msgs::msg::Twist());
@@ -209,37 +194,28 @@ private:
         geometry_msgs::msg::Twist out;
 
         if (current_mode_ == "MANUAL" || current_mode_ == "MAPPING") {
-            // Teleop passes through directly for instant response
             if ((now - last_teleop_cmd_time_) < timeout) {
                 out = last_teleop_cmd_;
             }
         } else if (current_mode_ == "NAVIGATION") {
             if ((now - last_nav_cmd_time_) < timeout) {
                 out = last_nav_cmd_;
-                
-                // 1. Apply Cruise Scaling to Nav2 commands
                 out.linear.x *= nav_cruise_linear_scale_;
                 out.angular.z *= nav_cruise_angular_scale_;
-                
-                // 2. Anti-Stuck Logic
-                // If the robot is commanded to move but the odometry says it's physically stationary
                 if (std::abs(out.linear.x) > 0.0 && std::abs(last_odom_linear_x_) < nav_stuck_linear_x_) {
-                    out.linear.x *= nav_linear_scale_; // Temporarily boost power to overcome friction
-                    // Ensure it meets minimum required speed to break static friction
+                    out.linear.x *= nav_linear_scale_;
                     if (out.linear.x > 0) out.linear.x = std::max(out.linear.x, nav_min_linear_x_);
                     if (out.linear.x < 0) out.linear.x = std::min(out.linear.x, -nav_min_linear_x_);
                 }
             }
         } else if (current_mode_ == "FOLLOWING") {
-            // FOLLOWING drives the robot via Nav2's FollowPath controller output
-            // (published on /cmd_vel_nav2), NOT /cmd_vel_follow.
-            // The follow_me.xml BT runs FollowPath which outputs to /cmd_vel_nav2.
-            // /cmd_vel_follow is a legacy topic that nothing publishes to.
+            // FOLLOWING uses /cmd_vel_nav2 (Nav2 FollowPath controller output).
+            // Nothing publishes to /cmd_vel_follow — that topic is unused.
             if ((now - last_nav_cmd_time_) < timeout) {
                 out = last_nav_cmd_;
             }
         }
-        
+
         cmd_vel_publisher_->publish(out);
     }
 };
