@@ -139,13 +139,13 @@ def generate_launch_description():
     lidar_fl = Node(
         package='sllidar_ros2', executable='sllidar_node', name='sllidar_front_left', output='screen',
         parameters=[{'serial_port': '/dev/ttyUSB0', 'serial_baudrate': 460800,
-                     'frame_id': 'lidar_front_left', 'angle_compensate': True, 'inverted': True}],
+                     'frame_id': 'lidar_front_left', 'angle_compensate': True, 'inverted': False}],
         remappings=[('/scan', '/lidar_front_left/scan')]
     )
     lidar_fr = Node(
         package='sllidar_ros2', executable='sllidar_node', name='sllidar_front_right', output='screen',
         parameters=[{'serial_port': '/dev/ttyUSB1', 'serial_baudrate': 460800,
-                     'frame_id': 'lidar_front_right', 'angle_compensate': True, 'inverted': True}],
+                     'frame_id': 'lidar_front_right', 'angle_compensate': True, 'inverted': False}],
         remappings=[('/scan', '/lidar_front_right/scan')]
     )
     lidar_br = Node(
