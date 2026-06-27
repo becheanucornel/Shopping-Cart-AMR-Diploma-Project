@@ -2,9 +2,10 @@ import os
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
+    ExecuteProcess,
     GroupAction,
     TimerAction,
-    LogInfo
+    LogInfo,
 )
 from launch.conditions import IfCondition, UnlessCondition
 from launch.substitutions import LaunchConfiguration, PythonExpression
@@ -47,7 +48,7 @@ def generate_launch_description():
     declare_gui_arg                     = DeclareLaunchArgument('gui',                     default_value='false')
     declare_merge_scans_arg             = DeclareLaunchArgument('merge_scans',             default_value='true')
     declare_use_startup_delays_arg      = DeclareLaunchArgument('use_startup_delays',      default_value='true')
-    declare_publish_odom_tf_arg         = DeclareLaunchArgument('publish_odom_tf',         default_value='false')  
+    declare_publish_odom_tf_arg         = DeclareLaunchArgument('publish_odom_tf',         default_value='false')
     declare_nav_cruise_linear_scale_arg = DeclareLaunchArgument('nav_cruise_linear_scale', default_value='1.0')
     declare_nav_cruise_angular_scale_arg= DeclareLaunchArgument('nav_cruise_angular_scale',default_value='1.0')
     declare_nav_stuck_linear_scale_arg  = DeclareLaunchArgument('nav_stuck_linear_scale',  default_value='8.0')
@@ -118,17 +119,18 @@ def generate_launch_description():
         name='mode_manager',
         output='screen',
         parameters=[{
-            'use_sim_time':            LaunchConfiguration('use_sim_time'),
-            'nav_cruise_linear_scale': ParameterValue(LaunchConfiguration('nav_cruise_linear_scale'),  value_type=float),
-            'nav_cruise_angular_scale':ParameterValue(LaunchConfiguration('nav_cruise_angular_scale'), value_type=float),
-            'nav_linear_scale':        ParameterValue(LaunchConfiguration('nav_stuck_linear_scale'),   value_type=float),
-            'nav_angular_scale':       ParameterValue(LaunchConfiguration('nav_stuck_angular_scale'),  value_type=float),
-            'nav_min_linear_x':        ParameterValue(LaunchConfiguration('nav_min_linear_x'),         value_type=float),
-            'nav_min_angular_z':       ParameterValue(LaunchConfiguration('nav_min_angular_z'),        value_type=float),
-            'nav_stuck_linear_x':      ParameterValue(LaunchConfiguration('nav_stuck_linear_x'),       value_type=float),
-            'nav_stuck_angular_z':     ParameterValue(LaunchConfiguration('nav_stuck_angular_z'),      value_type=float),
-            'map_save_path':           os.path.join(system_bringup_dir, 'map', 'map'),
-            'map_yaml_path':           os.path.join(system_bringup_dir, 'map', 'map.yaml'),
+            'use_sim_time':             LaunchConfiguration('use_sim_time'),
+            'nav_cruise_linear_scale':  ParameterValue(LaunchConfiguration('nav_cruise_linear_scale'),  value_type=float),
+            'nav_cruise_angular_scale': ParameterValue(LaunchConfiguration('nav_cruise_angular_scale'), value_type=float),
+            'nav_linear_scale':         ParameterValue(LaunchConfiguration('nav_stuck_linear_scale'),   value_type=float),
+            'nav_angular_scale':        ParameterValue(LaunchConfiguration('nav_stuck_angular_scale'),  value_type=float),
+            'nav_min_linear_x':         ParameterValue(LaunchConfiguration('nav_min_linear_x'),         value_type=float),
+            'nav_min_angular_z':        ParameterValue(LaunchConfiguration('nav_min_angular_z'),        value_type=float),
+            'nav_stuck_linear_x':       ParameterValue(LaunchConfiguration('nav_stuck_linear_x'),       value_type=float),
+            'nav_stuck_angular_z':      ParameterValue(LaunchConfiguration('nav_stuck_angular_z'),      value_type=float),
+            'map_save_path':            os.path.join(system_bringup_dir, 'map', 'map'),
+            'map_yaml_path':            os.path.join(system_bringup_dir, 'map', 'map.yaml'),
+            'slam_params_file':         os.path.join(system_bringup_dir, 'config', 'slam_toolbox.yaml'),
         }],
         condition=IfCondition(PythonExpression([
             "'", LaunchConfiguration('mode'), "' not in ['view', 'description']"
@@ -207,13 +209,13 @@ def generate_launch_description():
         output='screen',
         arguments=['--ros-args', '--log-level', 'ERROR'],
         parameters=[{
-            'laser_scan_topic': '/scan',
-            'odom_topic':       '/odom_rf2o',
-            'publish_tf':       False,
-            'base_frame_id':    'custom_base_link',
-            'odom_frame_id':    'custom_odom',
+            'laser_scan_topic':     '/scan',
+            'odom_topic':           '/odom_rf2o',
+            'publish_tf':           True,
+            'base_frame_id':        'custom_base_link',
+            'odom_frame_id':        'custom_odom',
             'init_pose_from_topic': '',
-            'freq':             20.0
+            'freq':                 20.0
         }]
     )
 
@@ -341,10 +343,10 @@ def generate_launch_description():
     map_saver_server = Node(
         package='nav2_map_server', executable='map_saver_server', name='map_saver', output='screen',
         parameters=[{
-            'use_sim_time':               LaunchConfiguration('use_sim_time'),
-            'save_map_timeout':           2000.0,
-            'free_thresh_default':        0.25,
-            'occupied_thresh_default':    0.65,
+            'use_sim_time':                  LaunchConfiguration('use_sim_time'),
+            'save_map_timeout':              2000.0,
+            'free_thresh_default':           0.25,
+            'occupied_thresh_default':       0.65,
             'map_subscribe_transient_local': True
         }],
         condition=IfCondition(mapping_mode)
@@ -363,6 +365,23 @@ def generate_launch_description():
         condition=IfCondition(mapping_mode)
     )
 
+    # ── Initial pose publisher — trimis la 20s dupa pornire ──────────────────
+    # TimerAction-ul de la Stage 3 porneste la t=6s, deci 20s total de la start
+    # e suficient ca AMCL sa fie complet activ si sa poata procesa initial pose
+    publish_initial_pose = TimerAction(
+        period=15.0,
+        actions=[
+            ExecuteProcess(
+                cmd=[
+                    'ros2', 'service', 'call',
+                    '/reinitialize_global_localization',
+                    'std_srvs/srv/Empty', '{}'
+                ],
+                output='screen',
+            )
+        ]
+    )
+
     # ── ROSBridge ─────────────────────────────────────────────────────────────
     rosbridge_websocket = Node(
         package='rosbridge_server',
@@ -370,9 +389,9 @@ def generate_launch_description():
         name='rosbridge_websocket',
         output='screen',
         parameters=[{
-            'port':                  9090,
+            'port':                   9090,
             'delay_between_messages': 0.0,
-            'unsubscribe_timeout':   10.0,
+            'unsubscribe_timeout':    10.0,
         }]
     )
 
@@ -383,12 +402,12 @@ def generate_launch_description():
         name='yolo_tracker',
         output='screen',
         parameters=[{
-            'confidence_threshold':  0.50,
-            'nms_threshold':         0.45,
-            'focal_length_px':       500.0,
-            'person_real_height_m':  1.70,
-            'ball_real_height_m':    0.04,
-            'min_box_height_px':     20,
+            'confidence_threshold': 0.50,
+            'nms_threshold':        0.45,
+            'focal_length_px':      500.0,
+            'person_real_height_m': 1.70,
+            'ball_real_height_m':   0.04,
+            'min_box_height_px':    20,
         }],
         condition=IfCondition(LaunchConfiguration('enable_follow'))
     )
@@ -410,7 +429,7 @@ def generate_launch_description():
     ]:
         ld.add_action(arg)
 
-    staged_startup   = IfCondition(LaunchConfiguration('use_startup_delays'))
+    staged_startup    = IfCondition(LaunchConfiguration('use_startup_delays'))
     immediate_startup = UnlessCondition(LaunchConfiguration('use_startup_delays'))
 
     all_nodes = [
@@ -421,7 +440,8 @@ def generate_launch_description():
         mode_manager, map_server_node, amcl_node, map_server_lifecycle,
         slam_toolbox_mapping, map_saver_server, map_saver_lifecycle,
         nav2_container, load_nav2_nodes,
-        web_server, rosbridge_websocket, yolo_tracker_node, rviz2
+        web_server, rosbridge_websocket, yolo_tracker_node, rviz2,
+        publish_initial_pose,
     ]
 
     immediate_group = GroupAction(
@@ -435,18 +455,18 @@ def generate_launch_description():
             LogInfo(msg="[Stage 1/6] Robot state publisher..."),
             robot_state_publisher, joint_state_publisher, joint_state_publisher_gui,
 
-            TimerAction(period=1.0,  actions=[LogInfo(msg="[Stage 2/6] Lidar FL..."),  lidar_fl]),
-            TimerAction(period=2.0,  actions=[LogInfo(msg="[Stage 2/6] Lidar FR..."),  lidar_fr]),
-            TimerAction(period=3.0,  actions=[LogInfo(msg="[Stage 2/6] Lidar BL..."),  lidar_bl]),
-            TimerAction(period=4.0,  actions=[LogInfo(msg="[Stage 2/6] Lidar BR..."),  lidar_br]),
+            TimerAction(period=1.0, actions=[LogInfo(msg="[Stage 2/6] Lidar FL..."),  lidar_fl]),
+            TimerAction(period=2.0, actions=[LogInfo(msg="[Stage 2/6] Lidar FR..."),  lidar_fr]),
+            TimerAction(period=3.0, actions=[LogInfo(msg="[Stage 2/6] Lidar BL..."),  lidar_bl]),
+            TimerAction(period=4.0, actions=[LogInfo(msg="[Stage 2/6] Lidar BR..."),  lidar_br]),
 
             TimerAction(period=5.0, actions=[
                 LogInfo(msg="[Stage 2.5/6] Scan merger, motor control & camera..."),
-                scan_merger, motor_controller, camera_publisher
+                scan_merger, motor_controller, camera_publisher,
             ]),
             TimerAction(period=5.5, actions=[
                 LogInfo(msg="[Stage 2.75/6] Odometry & sensor fusion..."),
-                rf2o_node, ekf_node
+                rf2o_node, ekf_node,
             ]),
             TimerAction(period=6.0, actions=[
                 LogInfo(msg="[Stage 3/6] Localization / mapping..."),
@@ -457,14 +477,16 @@ def generate_launch_description():
                 LogInfo(msg="[Stage 4/6] Nav2 container..."),
                 nav2_container,
             ]),
-            TimerAction(period=8.0, actions=[
+            TimerAction(period=9.0, actions=[
                 LogInfo(msg="[Stage 5/6] Nav2 composable nodes..."),
                 load_nav2_nodes,
             ]),
-            TimerAction(period=9.0, actions=[
+            TimerAction(period=13.0, actions=[
                 LogInfo(msg="[Stage 6/6] Web, ROSBridge, YOLO & RViz..."),
                 web_server, rosbridge_websocket, yolo_tracker_node, rviz2,
             ]),
+            # Initial pose la t=20s de la pornirea staged_group
+            publish_initial_pose,
         ]
     )
 

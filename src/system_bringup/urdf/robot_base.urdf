@@ -13,7 +13,7 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
-        <mesh filename="package://URDF_RobotDiploma/meshes/base_link.STL" />
+        <mesh filename="package://system_bringup/meshes/base_link.STL" />
       </geometry>
       <material name=""><color rgba="0.79 0.82 0.93 1" /></material>
     </visual>
@@ -27,7 +27,7 @@
 
   <link name="left_wheel">
     <visual>
-      <geometry><mesh filename="package://URDF_RobotDiploma/meshes/left_wheel.STL" /></geometry>
+      <geometry><mesh filename="package://system_bringup/meshes/left_wheel.STL" /></geometry>
       <material name=""><color rgba="0.79 0.82 0.93 1" /></material>
     </visual>
     <collision>
@@ -45,7 +45,7 @@
 
   <link name="right_wheel">
     <visual>
-      <geometry><mesh filename="package://URDF_RobotDiploma/meshes/right_wheel.STL" /></geometry>
+      <geometry><mesh filename="package://system_bringup/meshes/right_wheel.STL" /></geometry>
       <material name=""><color rgba="0.79 0.82 0.93 1" /></material>
     </visual>
     <collision>
@@ -63,7 +63,7 @@
 
   <link name="front_caster">
     <visual>
-      <geometry><mesh filename="package://URDF_RobotDiploma/meshes/front_caster.STL" /></geometry>
+      <geometry><mesh filename="package://system_bringup/meshes/front_caster.STL" /></geometry>
     </visual>
   </link>
   <joint name="frontcasterjoint" type="fixed">
@@ -74,7 +74,7 @@
 
   <link name="back_caster">
     <visual>
-      <geometry><mesh filename="package://URDF_RobotDiploma/meshes/back_caster.STL" /></geometry>
+      <geometry><mesh filename="package://system_bringup/meshes/back_caster.STL" /></geometry>
     </visual>
   </link>
   <joint name="backcasterjoint" type="fixed">
@@ -84,16 +84,16 @@
   </joint>
 
   <link name="lidar_front_right">
-    <visual><geometry><mesh filename="package://URDF_RobotDiploma/meshes/lidar_front_right.STL" /></geometry></visual>
+    <visual><geometry><mesh filename="package://system_bringup/meshes/lidar_front_right.STL" /></geometry></visual>
   </link>
   <joint name="lidar1" type="fixed">
-    <origin xyz="0.1438 -0.1185 0.0232" rpy="0 0 3.14159" />
+    <origin xyz="0.1438 -0.1185 0.0232" rpy="0 0 3.14159" /> 
     <parent link="custom_base_link" />
     <child link="lidar_front_right" />
   </joint>
 
   <link name="lidar_front_left">
-    <visual><geometry><mesh filename="package://URDF_RobotDiploma/meshes/lidar_front_left.STL" /></geometry></visual>
+    <visual><geometry><mesh filename="package://system_bringup/meshes/lidar_front_left.STL" /></geometry></visual>
   </link>
   <joint name="lidar2" type="fixed">
     <origin xyz="0.1439 0.1185 0.0232" rpy="0 0 3.14159" />
@@ -102,7 +102,7 @@
   </joint>
 
   <link name="lidar_back_left">
-    <visual><geometry><mesh filename="package://URDF_RobotDiploma/meshes/lidar_back_left.STL" /></geometry></visual>
+    <visual><geometry><mesh filename="package://system_bringup/meshes/lidar_back_left.STL" /></geometry></visual>
   </link>
   <joint name="lidar3" type="fixed">
     <origin xyz="-0.1431 0.1185 0.0232" rpy="0 0 0" />
@@ -111,7 +111,7 @@
   </joint>
 
   <link name="lidar_back_right">
-    <visual><geometry><mesh filename="package://URDF_RobotDiploma/meshes/lidar_back_right.STL" /></geometry></visual>
+    <visual><geometry><mesh filename="package://system_bringup/meshes/lidar_back_right.STL" /></geometry></visual>
   </link>
   <joint name="lidar4" type="fixed">
     <origin xyz="-0.1431 -0.1185 0.0232" rpy="0 0 0" />
@@ -120,7 +120,7 @@
   </joint>
 
   <link name="top_link">
-    <visual><geometry><mesh filename="package://URDF_RobotDiploma/meshes/top_link.STL" /></geometry></visual>
+    <visual><geometry><mesh filename="package://system_bringup/meshes/top_link.STL" /></geometry></visual>
   </link>
   <joint name="toplinkjoint" type="fixed">
     <origin xyz="0.1179 0 0.065" rpy="0 0 0" />
@@ -129,7 +129,7 @@
   </joint>
 
   <link name="camera_link">
-    <visual><geometry><mesh filename="package://URDF_RobotDiploma/meshes/camera_link.STL" /></geometry></visual>
+    <visual><geometry><mesh filename="package://system_bringup/meshes/camera_link.STL" /></geometry></visual>
   </link>
   <joint name="camera_joint" type="fixed">
     <origin xyz="0.0324 -0.002 0.36" rpy="1.5708 0 1.5708" />
