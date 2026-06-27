@@ -2,7 +2,7 @@ slam_toolbox:
   ros__parameters:
     use_sim_time: false
     odom_frame: custom_odom
-    base_frame: custom_base_link
+    base_frame: custom_base_footprint
     map_frame: map
     scan_topic: /scan
 
@@ -12,10 +12,10 @@ slam_toolbox:
     tf_buffer_size: 50
     transform_timeout: 1.0
 
-    minimum_travel_distance: 0.3    # era 0.1 — mai rar, mai stabil
-    minimum_travel_heading: 0.3
+    minimum_travel_distance: 0.1
+    minimum_travel_heading: 0.1
 
-    scan_buffer_size: 50            # era 20 — mai multe scanuri pt loop closure
+    scan_buffer_size: 30
     scan_buffer_discount: 0.3
 
     solver_plugin: solver_plugins::CeresSolver
@@ -33,8 +33,8 @@ slam_toolbox:
     loop_match_minimum_chain_size: 10
     maximum_distance_stronger_constraint: 0.5
     loop_match_maximum_variance_coarse: 3.0
-    loop_match_minimum_response_coarse: 0.55  # era 0.35 — mai strict
-    loop_match_minimum_response_fine: 0.65    # era 0.45 — mai strict
+    loop_match_minimum_response_coarse: 0.35
+    loop_match_minimum_response_fine: 0.45
 
     correlation_search_space_dimension: 0.5
     correlation_search_space_smear: 0.03

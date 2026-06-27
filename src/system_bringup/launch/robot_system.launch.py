@@ -211,11 +211,11 @@ def generate_launch_description():
         parameters=[{
             'laser_scan_topic':     '/scan',
             'odom_topic':           '/odom_rf2o',
-            'publish_tf':           True,
-            'base_frame_id':        'custom_base_link',
+            'publish_tf':           True,   # rf2o publishes TF at scan rate; EKF does fusion only
+            'base_frame_id':        'custom_base_footprint',
             'odom_frame_id':        'custom_odom',
             'init_pose_from_topic': '',
-            'freq':                 20.0
+            'freq':                 10.0
         }]
     )
 
@@ -365,11 +365,10 @@ def generate_launch_description():
         condition=IfCondition(mapping_mode)
     )
 
-    # ── Initial pose publisher — trimis la 20s dupa pornire ──────────────────
-    # TimerAction-ul de la Stage 3 porneste la t=6s, deci 20s total de la start
-    # e suficient ca AMCL sa fie complet activ si sa poata procesa initial pose
+    # ── Global localization trigger — fired at t=10s from launch ─────────────
+    # Stage 3 (AMCL) starts at t=6s; 4s is enough for lifecycle activation.
     publish_initial_pose = TimerAction(
-        period=15.0,
+        period=10.0,
         actions=[
             ExecuteProcess(
                 cmd=[
@@ -465,7 +464,7 @@ def generate_launch_description():
                 scan_merger, motor_controller, camera_publisher,
             ]),
             TimerAction(period=5.5, actions=[
-                LogInfo(msg="[Stage 2.75/6] Odometry & sensor fusion..."),
+                LogInfo(msg="[Stage 2.7/6] rf2o laser odometry & EKF..."),
                 rf2o_node, ekf_node,
             ]),
             TimerAction(period=6.0, actions=[

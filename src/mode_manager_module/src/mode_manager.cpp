@@ -220,6 +220,20 @@ private:
                     init_x, init_y, init_yaw);
             this->publish_initial_pose(init_x, init_y, init_yaw);
 
+            // 7. Reporneste YOLO acum ca SLAM s-a terminat
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            std::system(
+                "ros2 run human_detection_module detection_node "
+                "--ros-args -r __node:=yolo_tracker "
+                "-p confidence_threshold:=0.50 "
+                "-p nms_threshold:=0.45 "
+                "-p focal_length_px:=500.0 "
+                "-p person_real_height_m:=1.70 "
+                "-p ball_real_height_m:=0.04 "
+                "-p min_box_height_px:=20 &"
+            );
+            fprintf(stderr, "[mode_manager] YOLO repornit.\n");
+
             fprintf(stderr, "[mode_manager] Secventa MAPPING -> LOCALIZARE completa.\n");
 
         }).detach();
@@ -344,15 +358,25 @@ private:
             // Tranzitie catre MAPPING: dezactiveaza AMCL si porneste SLAM
             if (target == "MAPPING") {
                 R_INFO("Dezactivez AMCL si pornesc SLAM Toolbox...");
+                // Kill lifecycle manager first — otherwise it detects bond break and re-activates
+                // AMCL/map_server 4s later, causing SLAM and AMCL to run simultaneously
+                std::system("pkill -SIGINT -f lifecycle_manager_localization 2>/dev/null || true");
+                std::this_thread::sleep_for(std::chrono::milliseconds(600));
                 std::system("ros2 lifecycle set /amcl deactivate 2>/dev/null || true");
                 std::system("ros2 lifecycle set /map_server deactivate 2>/dev/null || true");
-                std::this_thread::sleep_for(std::chrono::seconds(1));
+                std::system("pkill -SIGINT -f detection_node 2>/dev/null || true");
+                R_INFO("YOLO oprit pentru mapping (elibereaza CPU pentru SLAM).");
+                std::this_thread::sleep_for(std::chrono::seconds(2));
 
+                // Note: If SLAM is pre-launched conditionally, activate it here
+                // Otherwise, manual launch (less recommended)
                 std::string slam_params = this->get_parameter("slam_params_file").as_string();
                 std::string slam_cmd = "ros2 launch slam_toolbox online_async_launch.py use_sim_time:=false";
                 if (!slam_params.empty()) slam_cmd += " slam_params_file:=" + slam_params;
                 slam_cmd += " &";
+                R_INFO("Lansez SLAM Toolbox...");
                 std::system(slam_cmd.c_str());
+                std::this_thread::sleep_for(std::chrono::seconds(3));  // Wait for SLAM to initialize
                 R_INFO("SLAM Toolbox pornit.");
             }
 

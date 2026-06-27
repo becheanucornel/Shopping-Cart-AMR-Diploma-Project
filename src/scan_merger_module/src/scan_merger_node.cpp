@@ -76,8 +76,16 @@ private:
         }
         if (!has_data) return;
 
-        // FIX 1: Folosim timpul curent al sistemului pentru a fi in sintonie cu TF
-        merged_msg_.header.stamp = this->now();
+        // Use the timestamp of the most recent received scan so that TF lookups
+        // in SLAM/AMCL find a valid odom→base transform at exactly that time.
+        rclcpp::Time latest_stamp(0, 0, RCL_ROS_TIME);
+        for (const auto & scan : latest_scans_) {
+            if (scan) {
+                rclcpp::Time t = scan->header.stamp;
+                if (t > latest_stamp) latest_stamp = t;
+            }
+        }
+        merged_msg_.header.stamp = latest_stamp;
 
         // Reset ranges
         std::fill(merged_msg_.ranges.begin(), merged_msg_.ranges.end(),
@@ -157,9 +165,6 @@ private:
         }
 
         pub_->publish(merged_msg_);
-        
-        // FIX 2: Goleste bufferul de scannere ca sa nu procesam de doua ori aceleasi date
-        std::fill(latest_scans_.begin(), latest_scans_.end(), nullptr);
     }
 
     // ── Members ─────────────────────────────────────────────────────────────
