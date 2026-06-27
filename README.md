@@ -164,9 +164,3 @@ The robot has been designed entirely in SolidWorks. It consists of two main asse
 The robot was initially developed and validated inside NVIDIA Isaac Sim 5.1.0 before hardware integration.
 
 <img src="docs/demo.gif" width="700" height="450">
-
-## Known Limitations / In Progress
-
-- **Wheel shaft slip** — current wheel design allows the motor shaft to rotate inside the wheel hub under load, causing encoder odometry drift. New wheels are being 3D printed with a press-fit/keyed shaft interface.
-- **Final map** — a definitive map of the target environment will be recorded once the new wheels are installed, as encoder accuracy directly affects SLAM quality.
-- **Bounding box stream** — the `/stream/debug` MJPEG endpoint is live and shows real-time bounding boxes whenever a target is detected.
