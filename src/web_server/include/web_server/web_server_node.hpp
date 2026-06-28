@@ -100,6 +100,14 @@ private:
   geometry_msgs::msg::PoseStamped           pending_follow_pose_;
   bool                                      has_pending_follow_{false};
 
+  // How far behind the person to target (avoids planning into the person's body)
+  double follow_distance_{0.7};
+  // Minimum goal displacement before sending a new navigate_to_pose (reduces preemption)
+  double min_goal_displacement_{0.3};
+  double last_follow_goal_x_{0.0};
+  double last_follow_goal_y_{0.0};
+  bool   has_sent_follow_goal_{false};
+
   // ── Nav2 action client ────────────────────────────────────────────────────
   rclcpp_action::Client<NavigateToPose>::SharedPtr nav_client_;
   GoalHandleNavigateToPose::SharedPtr              current_goal_handle_;

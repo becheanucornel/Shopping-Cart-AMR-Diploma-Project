@@ -633,19 +633,22 @@ private:
 
       // 7. Publish PoseStamped in camera_link frame
       //    web_server_node transforms this to map via TF before Nav2.
+      //
+      // camera_link axes (from URDF joint rpy="1.5708 0 1.5708"):
+      //   +x = robot LEFT,  +y = robot UP,  +z = robot FORWARD
+      // So depth goes into z and lateral (positive=LEFT) goes into x.
       geometry_msgs::msg::PoseStamped pose;
       pose.header.stamp    = msg->header.stamp;
       pose.header.frame_id = "camera_link";
 
-      pose.pose.position.x = static_cast<double>(dist);
-      pose.pose.position.y = static_cast<double>(lateral);
-      pose.pose.position.z = 0.0;
+      pose.pose.position.x = static_cast<double>(lateral);  // +x = LEFT
+      pose.pose.position.y = 0.0;                            // +y = UP (person at floor level)
+      pose.pose.position.z = static_cast<double>(dist);     // +z = FORWARD
 
-      double yaw = std::atan2(lateral, dist);
       pose.pose.orientation.x = 0.0;
       pose.pose.orientation.y = 0.0;
-      pose.pose.orientation.z = std::sin(yaw / 2.0);
-      pose.pose.orientation.w = std::cos(yaw / 2.0);
+      pose.pose.orientation.z = 0.0;
+      pose.pose.orientation.w = 1.0;
 
       target_pub_->publish(pose);
 

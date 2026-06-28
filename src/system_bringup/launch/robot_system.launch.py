@@ -184,7 +184,15 @@ def generate_launch_description():
         package='robot_driver',
         executable='motor_controller_node',
         name='motor_controller',
-        output='screen'
+        output='screen',
+        parameters=[{
+            'max_linear_speed':    1.0,   # m/s — allows manual slider full range
+            'max_angular_speed':   2.0,   # rad/s
+            'linear_accel_limit':  0.15,  # m/s² — gentle ramp up
+            'linear_decel_limit':  1.5,   # m/s² — sharp stop
+            'angular_accel_limit': 0.5,   # rad/s²
+            'angular_decel_limit': 3.0,   # rad/s²
+        }]
     )
 
     # ── Camera publisher ─────────────────────────────────────────────────────
@@ -236,7 +244,7 @@ def generate_launch_description():
         output='screen',
         parameters=[{
             'port':                       8080,
-            'jpeg_quality':               75,
+            'jpeg_quality':               88,
             'auto_initialpose_from_odom': ParameterValue(LaunchConfiguration('use_sim_time'), value_type=bool),
             'publish_odom_tf':            ParameterValue(LaunchConfiguration('publish_odom_tf'), value_type=bool),
         }]

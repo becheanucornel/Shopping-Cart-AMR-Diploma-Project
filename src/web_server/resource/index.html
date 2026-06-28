@@ -36,17 +36,6 @@
 html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); }
 body { font-family: var(--sans); color: var(--text); }
 
-body::before {
-  content: '';
-  position: fixed; inset: 0; z-index: 9000; pointer-events: none;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(0,0,0,0.04) 2px,
-    rgba(0,0,0,0.04) 4px
-  );
-}
 
 #splash {
   position: fixed; inset: 0; z-index: 9999;
@@ -335,7 +324,7 @@ input[type=number]::placeholder { color: var(--muted); }
     <div class="mtab active" id="tab-idle"       onclick="setMode('IDLE')">IDLE</div>
     <div class="mtab"        id="tab-manual"     onclick="setMode('MANUAL')">MANUAL</div>
     <div class="mtab"        id="tab-navigation" onclick="setMode('NAVIGATION')">NAVIGATE</div>
-    <div class="mtab"        id="tab-following"  onclick="setMode('FOLLOWING')">FOLLOW</div>
+    <div class="mtab"        id="tab-following"  onclick="enterFollowPanel()">FOLLOW</div>
   </div>
   <div id="connBadge" class="tb-conn bad">
     <span class="led"></span>
@@ -401,10 +390,7 @@ input[type=number]::placeholder { color: var(--muted); }
   <div class="panel" id="panel-navigation">
     <div class="map-pane">
       <div id="map-container"></div>
-      <div class="map-legend">
-        <div class="legend-row"><div class="lbox" style="background:#ff3333"></div>Robot</div>
-        <div class="legend-row"><div class="lbox" style="background:#00e676"></div>Laser</div>
-      </div>
+
       <div class="corner-deco tl"></div><div class="corner-deco tr"></div>
       <div class="corner-deco bl"></div><div class="corner-deco br"></div>
     </div>
@@ -439,10 +425,6 @@ input[type=number]::placeholder { color: var(--muted); }
            style="width:100%;height:100%;object-fit:contain;display:block">
     </div>
     <div class="follow-bar">
-      <select id="targetSelect" onchange="setTargetClass(this.value)">
-        <option value="human">TRACK: HUMAN</option>
-        <option value="ball">TRACK: SPORTS BALL</option>
-      </select>
       <div class="follow-status" id="followStatus">STANDBY</div>
       <button class="btn primary" id="btnFollowStart" onclick="startFollowing()">▶ START FOLLOWING</button>
       <button class="btn danger"  id="btnFollowStop"  onclick="stopFollowing()" style="display:none">■ STOP</button>
@@ -568,12 +550,27 @@ function cancelGoal() {
 }
 
 let followActive = false;
+
+// Switch to the FOLLOW panel without activating following yet.
+// The START button is what actually enables following on the backend.
+function enterFollowPanel() {
+  if (currentMode === 'FOLLOWING') return;
+  currentMode = 'FOLLOWING';
+  TABS.forEach(t => {
+    document.getElementById('tab-' + t).classList.toggle('active', t === 'following');
+  });
+  updateTabInterlocks('FOLLOWING');
+  Object.entries(PANELS).forEach(([key, id]) => {
+    document.getElementById(id).classList.toggle('visible', key === 'following');
+  });
+  // No ROS publish here — backend only activates following when START is pressed.
+}
+
 function setTargetClass(val) {
   classClient.callService(new ROSLIB.ServiceRequest({ data: val === 'ball' }), () => {});
 }
 function startFollowing() {
   followActive = true;
-  setTargetClass(document.getElementById('targetSelect').value);
   uiModePub.publish(new ROSLIB.Message({ data: 'FOLLOWING' }));
   document.getElementById('followStatus').textContent = '● FOLLOWING ACTIVE';
   document.getElementById('followStatus').classList.add('active');
@@ -581,9 +578,8 @@ function startFollowing() {
   document.getElementById('btnFollowStop').style.display  = '';
 }
 function stopFollowing() {
-  followActive = false;
   uiModePub.publish(new ROSLIB.Message({ data: 'IDLE' }));
-  setMode('IDLE');
+  resetFollowUI();
 }
 function resetFollowUI() {
   followActive = false;
@@ -594,7 +590,7 @@ function resetFollowUI() {
 }
 
 // ── Map ────────────────────────────────────────────────────────────────────
-let viewer, mapClient, robotMarker, amclSub;
+let viewer, mapClient, robotMarker, pathShape, amclSub, planSub;
 let isTrackingRobot = true;
 let trackResumeTimer = null;
 const ZOOM_DEFAULT = 80;
@@ -607,6 +603,7 @@ function triggerManualPan() {
 }
 
 function destroyMap() {
+  if (planSub)   { try { planSub.unsubscribe();    } catch(e) {} planSub   = null; }
   if (amclSub)   { try { amclSub.unsubscribe();   } catch(e) {} amclSub   = null; }
   if (mapClient) { try { mapClient.unsubscribe();  } catch(e) {} mapClient = null; }
   if (viewer) {
@@ -617,6 +614,7 @@ function destroyMap() {
     viewer = null;
   }
   robotMarker = null;
+  pathShape   = null;
 }
 
 function initMap() {
@@ -643,12 +641,32 @@ function initMap() {
     }
   });
 
+  // Path drawn beneath the robot marker
+  pathShape = new createjs.Shape();
+  viewer.scene.addChild(pathShape);
+
   robotMarker = new createjs.Shape();
   robotMarker.graphics
     .beginFill('#1a2a1a').drawCircle(0,0,0.24)
     .setStrokeStyle(0.04).beginStroke('#00e676').beginFill('#ff3333').drawCircle(0,0,0.20)
     .beginFill('#fff').moveTo(0.06,-0.12).lineTo(0.30,0).lineTo(0.06,0.12).closePath();
   viewer.scene.addChild(robotMarker);
+
+  // Subscribe to Nav2 global plan
+  planSub = new ROSLIB.Topic({ ros, name: '/plan', messageType: 'nav_msgs/msg/Path' });
+  planSub.subscribe(msg => {
+    if (!pathShape) return;
+    pathShape.graphics.clear();
+    const poses = msg.poses;
+    if (!poses || poses.length < 2) return;
+    pathShape.graphics.setStrokeStyle(0.06).beginStroke('rgba(0,230,118,0.75)');
+    pathShape.graphics.moveTo(poses[0].pose.position.x, -poses[0].pose.position.y);
+    for (let i = 1; i < poses.length; i++) {
+      const p = poses[i].pose.position;
+      pathShape.graphics.lineTo(p.x, -p.y);
+    }
+    pathShape.graphics.endStroke();
+  });
 
   // FIX: Folosim /amcl_pose in loc de /odom_nav2
   // /amcl_pose = pozitia reala a robotului pe harta globala (localizata de AMCL)

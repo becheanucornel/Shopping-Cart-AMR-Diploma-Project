@@ -68,9 +68,11 @@ class AmrMotorNode(Node):
         # Speed limits applied to incoming cmd_vel
         self.declare_parameter('max_linear_speed',   0.2)   # m/s
         self.declare_parameter('max_angular_speed',  0.6)   # rad/s
-        # Acceleration limits (units per second)
-        self.declare_parameter('linear_accel_limit', 0.15)  # m/s²
-        self.declare_parameter('angular_accel_limit',0.5)   # rad/s²
+        # Acceleration/deceleration limits (units per second)
+        self.declare_parameter('linear_accel_limit',  0.15)  # m/s²
+        self.declare_parameter('linear_decel_limit',  1.5)   # m/s² — faster stop
+        self.declare_parameter('angular_accel_limit', 0.5)   # rad/s²
+        self.declare_parameter('angular_decel_limit', 3.0)   # rad/s²
         # How many m/s maps to 100% PWM (tune to match motor characteristics)
         self.declare_parameter('pwm_scale',          1.0)   # 1.0 m/s = 100% PWM
         # Seconds without a cmd_vel before ramping to stop
@@ -82,7 +84,9 @@ class AmrMotorNode(Node):
         self.max_v   = self.get_parameter('max_linear_speed').value
         self.max_w   = self.get_parameter('max_angular_speed').value
         self.acc_v   = self.get_parameter('linear_accel_limit').value
+        self.dec_v   = self.get_parameter('linear_decel_limit').value
         self.acc_w   = self.get_parameter('angular_accel_limit').value
+        self.dec_w   = self.get_parameter('angular_decel_limit').value
         self.pwm_scale = self.get_parameter('pwm_scale').value
         self.cmd_timeout = self.get_parameter('cmd_vel_timeout').value
 
@@ -163,8 +167,11 @@ class AmrMotorNode(Node):
         self.target_w = max(-self.max_w, min(self.max_w, msg.angular.z))
         self.last_cmd_time = self.get_clock().now()
 
-    def _ramp(self, current, target, limit, dt):
+    def _ramp(self, current, target, accel, decel, dt):
         delta = target - current
+        # Deceleration: moving toward zero or reversing direction
+        slowing = (current > 0 and target < current) or (current < 0 and target > current)
+        limit = decel if slowing else accel
         max_step = limit * dt
         if abs(delta) <= max_step:
             return target
@@ -199,8 +206,8 @@ class AmrMotorNode(Node):
             self.target_w = 0.0
 
         # Ramp current velocities toward targets
-        self.current_v = self._ramp(self.current_v, self.target_v, self.acc_v, dt)
-        self.current_w = self._ramp(self.current_w, self.target_w, self.acc_w, dt)
+        self.current_v = self._ramp(self.current_v, self.target_v, self.acc_v, self.dec_v, dt)
+        self.current_w = self._ramp(self.current_w, self.target_w, self.acc_w, self.dec_w, dt)
 
         # Drive motors at ramped velocity
         self._apply_velocities(self.current_v, self.current_w)

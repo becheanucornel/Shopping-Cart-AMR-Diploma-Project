@@ -103,8 +103,14 @@ WebServerNode::WebServerNode(const rclcpp::NodeOptions & options)
       if (mode_pub_) mode_pub_->publish(m);
     });
 
+  this->declare_parameter("follow_distance",       0.7);
+  this->declare_parameter("min_goal_displacement", 0.3);
+  follow_distance_       = this->get_parameter("follow_distance").as_double();
+  min_goal_displacement_ = this->get_parameter("min_goal_displacement").as_double();
+
+  // 1 Hz — gives Nav2 enough time to plan and start moving before the goal updates
   follow_goal_timer_ = this->create_wall_timer(
-    std::chrono::milliseconds(200), std::bind(&WebServerNode::follow_goal_timer_cb, this));
+    std::chrono::milliseconds(1000), std::bind(&WebServerNode::follow_goal_timer_cb, this));
 
   RCLCPP_INFO(this->get_logger(), "Web server starting on port %d (MJPEG streams enabled)", port_);
 
@@ -154,13 +160,20 @@ void WebServerNode::ui_mode_callback(const std_msgs::msg::String::SharedPtr msg)
   current_mode_ = msg->data;
 
   if (current_mode_ != "FOLLOWING") {
-    is_following_active_ = false;
-    has_pending_follow_  = false;
+    is_following_active_  = false;
+    has_pending_follow_   = false;
+    has_sent_follow_goal_ = false;
   }
 
-  if ((current_mode_ == "MANUAL" || current_mode_ == "IDLE") && current_goal_handle_) {
-    RCLCPP_WARN(this->get_logger(), "Cancelling navigation (switching to %s)", current_mode_.c_str());
-    (void)nav_client_->async_cancel_goal(current_goal_handle_);
+  if (current_mode_ == "MANUAL" || current_mode_ == "IDLE") {
+    // Cancel all active Nav2 goals — async_cancel_all_goals covers the case
+    // where current_goal_handle_ is null (follow goals cycle; the handle is
+    // reset after each result, so there may be an in-flight goal with no handle).
+    if (nav_client_) {
+      RCLCPP_WARN(this->get_logger(), "Cancelling all Nav2 goals (switching to %s)", current_mode_.c_str());
+      (void)nav_client_->async_cancel_all_goals();
+      current_goal_handle_.reset();
+    }
   }
 
   if (current_mode_ == "FOLLOWING") {
@@ -202,28 +215,69 @@ void WebServerNode::follow_goal_timer_cb()
   if (!is_following_active_) return;
 
   geometry_msgs::msg::PoseStamped target;
+  double rx, ry;
   {
     std::lock_guard<std::mutex> lock(data_mutex_);
     if (!has_pending_follow_) return;
     target              = pending_follow_pose_;
     has_pending_follow_ = false;
+    rx = current_pose_.position.x;
+    ry = current_pose_.position.y;
   }
 
   if (!nav_client_) return;
+
+  double px   = target.pose.position.x;
+  double py   = target.pose.position.y;
+  double dist = std::hypot(px - rx, py - ry);
+
+  // Already within follow distance — let Nav2 stop naturally, don't send another goal
+  if (dist < follow_distance_) return;
+
+  // Target a point follow_distance behind the person (toward the robot)
+  // so we never ask Nav2 to plan into the person's body
+  double ux = (rx - px) / dist;
+  double uy = (ry - py) / dist;
+  double gx = px + ux * follow_distance_;
+  double gy = py + uy * follow_distance_;
+
+  // Suppress update if the new goal hasn't moved enough from the last sent goal
+  if (has_sent_follow_goal_) {
+    double delta = std::hypot(gx - last_follow_goal_x_, gy - last_follow_goal_y_);
+    if (delta < min_goal_displacement_) return;
+  }
+
+  // Face the person from the approach point
+  double angle = std::atan2(py - gy, px - gx);
+  target.pose.position.x    = gx;
+  target.pose.position.y    = gy;
+  target.pose.orientation.x = 0.0;
+  target.pose.orientation.y = 0.0;
+  target.pose.orientation.z = std::sin(angle / 2.0);
+  target.pose.orientation.w = std::cos(angle / 2.0);
+
+  last_follow_goal_x_  = gx;
+  last_follow_goal_y_  = gy;
+  has_sent_follow_goal_ = true;
+
+  RCLCPP_INFO(this->get_logger(),
+    "Follow→Nav2: person(%.2f,%.2f) dist=%.2fm goal(%.2f,%.2f)",
+    px, py, dist, gx, gy);
 
   NavigateToPose::Goal goal;
   goal.pose = target;
   if (!follow_me_xml_path_.empty()) goal.behavior_tree = follow_me_xml_path_;
 
-  RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
-    "Follow→Nav2: x=%.2f y=%.2f (map)", goal.pose.pose.position.x, goal.pose.pose.position.y);
-
   auto opts = rclcpp_action::Client<NavigateToPose>::SendGoalOptions();
   opts.goal_response_callback = [this](GoalHandleNavigateToPose::SharedPtr gh) {
     if (gh) current_goal_handle_ = gh;
   };
-  opts.result_callback = [this](const GoalHandleNavigateToPose::WrappedResult &) {
+  opts.result_callback = [this](const GoalHandleNavigateToPose::WrappedResult & result) {
     current_goal_handle_.reset();
+    // Reset so the next significant detection immediately triggers a fresh goal
+    if (result.code != rclcpp_action::ResultCode::SUCCEEDED) {
+      has_sent_follow_goal_ = false;
+    }
   };
   nav_client_->async_send_goal(goal, opts);
 }
