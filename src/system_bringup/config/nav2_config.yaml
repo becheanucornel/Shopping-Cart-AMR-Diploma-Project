@@ -70,7 +70,7 @@ local_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
-        inflation_radius: 0.55
+        inflation_radius: 0.17
 
 global_costmap:
   global_costmap:
@@ -83,11 +83,16 @@ global_costmap:
       robot_radius: 0.35
       resolution: 0.05
       track_unknown_space: true
-      plugins: ["static_layer"]
+      plugins: ["static_layer", "inflation_layer"]
 
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
         map_subscribe_transient_local: true
+
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.17
 
 controller_server:
   ros__parameters:
@@ -125,10 +130,10 @@ controller_server:
       min_speed_xy: 0.0
       max_speed_xy: 0.20
       min_speed_theta: 0.0
-      acc_lim_x: 0.3            # REDUCED - slower acceleration
+      acc_lim_x: 0.3
       acc_lim_y: 0.0
-      acc_lim_theta: 1.0        # REDUCED angular accel
-      decel_lim_x: -0.8         # INCREASED - faster braking for safety
+      acc_lim_theta: 1.0
+      decel_lim_x: -0.8
       decel_lim_y: 0.0
       decel_lim_theta: -1.0
       vx_samples: 10
@@ -137,7 +142,7 @@ controller_server:
       sim_time: 1.5
       transform_tolerance: 0.2
       critics: ["RotateToGoal", "Oscillation", "BaseObstacle", "GoalAlign", "PathAlign", "PathDist", "GoalDist"]
-      
+
       BaseObstacle:
         plugin: "dwb_critics::BaseObstacleCritic"
         scale: 0.02
@@ -166,10 +171,23 @@ planner_server:
     use_sim_time: false
     planner_plugins: ["GridBased"]
     GridBased:
-      plugin: "nav2_navfn_planner/NavfnPlanner"
+      plugin: "nav2_smac_planner/SmacPlanner2D"
       tolerance: 0.5
-      use_astar: false
+      downsample_costmap: false
+      downsampling_factor: 1
       allow_unknown: true
+      max_iterations: 1000000
+      max_on_approach_iterations: 1000
+      max_planning_time: 2.0
+      cost_travel_multiplier: 2.0
+      use_final_approach_orientation: false
+      smoother:
+        max_iterations: 1000
+        w_smooth: 0.3
+        w_data: 0.2
+        tolerance: 1.0e-10
+        do_refinement: true
+        refinement_num: 2
 
 behavior_server:
   ros__parameters:
