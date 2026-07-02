@@ -157,8 +157,6 @@ The robot has been designed entirely in SolidWorks. It consists of two main asse
 - **Robot Base** — main structural body holding the motors, LiDARs, caster wheels, and shopping basket mount
 - **Robot Panel** — internal panel designed to house all electrical components
 
-<img src="docs/AMR_ShoppingCart.png" width="350" height="300">
-
 <p float="left">
   <img src="docs/Robot_Fata.png" width="48%" />
   <img src="docs/Robot_Spate.png" width="48%" />
@@ -170,12 +168,12 @@ Demonstrations of the robot performing on hardware.
 
 ### Localization
 
-[![Localization](https://img.youtube.com/vi/b-eXOFlw1KQ.jpg)](https://www.youtube.com/watch?v=b-eXOFlw1KQ)
+[![Localization](https://img.youtube.com/vi/b-eXOFlw1KQ/0.jpg)](https://www.youtube.com/watch?v=b-eXOFlw1KQ)
 
 ### Navigation to a Target
 
-[![Navigation to a Target](https://img.youtube.com/vi/DEMlTes20ME.jpg)](https://www.youtube.com/watch?v=DEMlTes20ME)
+[![Navigation to a Target](https://img.youtube.com/vi/DEMlTes20ME/0.jpg)](https://www.youtube.com/watch?v=DEMlTes20ME)
 
 ### Dynamic Point Follower
 
-[![Dynamic Point Follower](https://img.youtube.com/vi/rmnldiNaGu0.jpg)](https://www.youtube.com/watch?v=rmnldiNaGu0)
+[![Dynamic Point Follower](https://img.youtube.com/vi/rmnldiNaGu0/0.jpg)](https://www.youtube.com/watch?v=rmnldiNaGu0)
