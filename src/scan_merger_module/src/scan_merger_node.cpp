@@ -76,8 +76,6 @@ private:
         }
         if (!has_data) return;
 
-        // Use the timestamp of the most recent received scan so that TF lookups
-        // in SLAM/AMCL find a valid odom→base transform at exactly that time.
         rclcpp::Time latest_stamp(0, 0, RCL_ROS_TIME);
         for (const auto & scan : latest_scans_) {
             if (scan) {
@@ -87,7 +85,6 @@ private:
         }
         merged_msg_.header.stamp = latest_stamp;
 
-        // Reset ranges
         std::fill(merged_msg_.ranges.begin(), merged_msg_.ranges.end(),
                   std::numeric_limits<float>::infinity());
 
@@ -95,7 +92,6 @@ private:
             const auto & scan = latest_scans_[i];
             if (!scan) continue;
 
-            // ── TF caching — static transforms nu se schimba niciodata ─────
             if (!transform_is_cached_[i]) {
                 try {
                     geometry_msgs::msg::TransformStamped tf_msg =
@@ -123,7 +119,7 @@ private:
                 } catch (const tf2::TransformException & ex) {
                     RCLCPP_WARN_SKIPFIRST_THROTTLE(
                         this->get_logger(), *this->get_clock(), 1000,
-                        "TF Error pentru %s: %s", scan->header.frame_id.c_str(), ex.what());
+                        "TF Error for %s: %s", scan->header.frame_id.c_str(), ex.what());
                     continue;
                 }
             }
@@ -133,7 +129,6 @@ private:
             for (size_t j = 0; j < scan->ranges.size(); ++j) {
                 float r = scan->ranges[j];
 
-                // Filtreaza valori invalide
                 if (!std::isfinite(r)) continue;
                 if (r < scan->range_min || r > scan->range_max) continue;
 
@@ -141,7 +136,6 @@ private:
                 double lx = r * std::cos(angle);
                 double ly = r * std::sin(angle);
 
-                // ── FIX: mask_radius parametrizabil, ignora corpul robotului
                 if (std::hypot(lx, ly) < mask_radius_) continue;
 
                 tf2::Vector3 point_local(lx, ly, 0.0);
@@ -157,7 +151,6 @@ private:
 
                 if (index < 0 || index >= num_points_) continue;
 
-                // Pastreaza cel mai apropiat punct per unghi (min range)
                 if (static_cast<float>(merged_r) < merged_msg_.ranges[index]) {
                     merged_msg_.ranges[index] = static_cast<float>(merged_r);
                 }
@@ -167,7 +160,6 @@ private:
         pub_->publish(merged_msg_);
     }
 
-    // ── Members ─────────────────────────────────────────────────────────────
     std::vector<std::string> topics_;
     std::string output_topic_;
     std::string output_frame_id_;

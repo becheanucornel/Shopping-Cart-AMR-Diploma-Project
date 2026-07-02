@@ -1,27 +1,3 @@
-// ============================================================
-// detection_node.cpp  —  TensorRT 10.3 version
-// Target: NVIDIA Jetson Orin Nano Super, CUDA 12.6, TRT 10.3.0
-//
-// Pipeline:
-//   /camera (sensor_msgs/Image)
-//       → letterbox resize to 640×640
-//       → CUDA pre-process (normalize to [0,1], NCHW)
-//       → TensorRT FP16 inference (yolov8n.engine)
-//       → YOLOv8 post-process (transpose [1,84,8400]→[8400,84], NMS)
-//       → pinhole distance + lateral estimate
-//       → /yolo/target_pose (geometry_msgs/PoseStamped, frame=camera_link)
-//
-// First-run engine build:
-//   If yolov8n.engine does not exist next to yolov8n.onnx, the node
-//   builds it automatically (takes ~90 s on the Orin Nano Super).
-//   Subsequent launches load the cached .engine file instantly.
-//
-// Service:
-//   /detector/set_class  (std_srvs/SetBool)
-//   false → track person (class 0)
-//   true  → track sports ball (class 32)
-// ============================================================
-
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
@@ -29,14 +5,9 @@
 #include <cv_bridge/cv_bridge.h>
 #include <ament_index_cpp/get_package_share_directory.hpp>
 
-// OpenCV — used only for image pre/post processing, NOT for DNN
 #include <opencv2/opencv.hpp>
-
-// TensorRT 10 headers
 #include <NvInfer.h>
 #include <NvOnnxParser.h>
-
-// CUDA runtime
 #include <cuda_runtime_api.h>
 
 #include <fstream>
@@ -51,7 +22,6 @@
 using std::placeholders::_1;
 using std::placeholders::_2;
 
-// ── CUDA error check macro ────────────────────────────────────────────────────
 #define CUDA_CHECK(call)                                                        \
   do {                                                                          \
     cudaError_t err = (call);                                                   \
@@ -62,10 +32,8 @@ using std::placeholders::_2;
     }                                                                           \
   } while (0)
 
-// ── TensorRT logger ──────────────────────────────────────────────────────────
 class TRTLogger : public nvinfer1::ILogger {
 public:
-  // Suppress INFO-level spam; keep WARNING and above
   void log(Severity severity, const char * msg) noexcept override {
     if (severity <= Severity::kWARNING) {
       std::fprintf(stderr, "[TRT] %s\n", msg);
@@ -73,13 +41,11 @@ public:
   }
 };
 
-// ── Deleters for TRT managed objects ────────────────────────────────────────
 struct TRTDestroy {
   template<class T>
   void operator()(T * obj) const { if (obj) obj->destroy(); }
 };
 
-// ── Helper: load a binary file into a vector ─────────────────────────────────
 static std::vector<char> load_file(const std::string & path) {
   std::ifstream f(path, std::ios::binary | std::ios::ate);
   if (!f) throw std::runtime_error("Cannot open file: " + path);
@@ -90,14 +56,12 @@ static std::vector<char> load_file(const std::string & path) {
   return buf;
 }
 
-// ── Detection struct ─────────────────────────────────────────────────────────
 struct Detection {
-  float x, y, w, h;   // in 640×640 letterbox space
+  float x, y, w, h;
   float conf;
   int   class_id;
 };
 
-// ── NMS (CPU, runs on small candidate list after confidence filter) ───────────
 static std::vector<Detection> nms(
   std::vector<Detection> & dets, float iou_thresh)
 {
@@ -137,7 +101,6 @@ static std::vector<Detection> nms(
   return out;
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
 class DetectionNodeCpp : public rclcpp::Node
 {
 public:
@@ -162,28 +125,16 @@ public:
     input_h_        = get_parameter("input_height").as_int();
     min_box_h_      = get_parameter("min_box_height_px").as_int();
 
-    // ── Paths ───────────────────────────────────────────────────────────────
     std::string share =
       ament_index_cpp::get_package_share_directory("human_detection_module");
     onnx_path_ = share + "/model/yolov8n.onnx";
 
-    // FIX: Engine file must be written to a WRITABLE directory.
-    // The install/share directory is read-only after `colcon build`.
-    // Writing there silently fails (ofstream opens but writes nothing),
-    // so the engine is never cached → rebuilt from scratch every launch
-    // → build fails after ~4s → node crashes before spinning → no service.
-    // Solution: store the engine in ~/.ros/human_detection/ which is always
-    // writable and survives across launches and rebuilds.
     const char* home = std::getenv("HOME");
     std::string engine_dir = std::string(home ? home : "/tmp") + "/.ros/human_detection";
     // Create directory if it doesn't exist
     std::filesystem::create_directories(engine_dir);
     engine_path_ = engine_dir + "/yolov8n.engine";
 
-    // ── Build or load TensorRT engine ───────────────────────────────────────
-    // Wrapped in try-catch: if TRT init fails the node still spins,
-    // publishes placeholder debug frames, and the service stays alive.
-    // This prevents the "service does not exist" error in the browser.
     trt_ready_ = false;
     try {
       init_tensorrt();
@@ -196,7 +147,6 @@ public:
         e.what());
     }
 
-    // ── Service ─────────────────────────────────────────────────────────────
     srv_ = create_service<std_srvs::srv::SetBool>(
       "/detector/set_class",
       [this](const std_srvs::srv::SetBool::Request::SharedPtr req,
@@ -216,8 +166,6 @@ public:
     target_pub_ = create_publisher<geometry_msgs::msg::PoseStamped>(
       "/yolo/target_pose", 10);
 
-    // Debug image: raw frame + bounding boxes drawn on it.
-    // web_server_node subscribes to this for the MJPEG /stream/debug endpoint.
     debug_pub_ = create_publisher<sensor_msgs::msg::Image>(
       "/yolo/debug_image", rclcpp::SensorDataQoS());
 
@@ -231,27 +179,23 @@ public:
 
   ~DetectionNodeCpp()
   {
-    // Free CUDA buffers
     if (d_input_)  cudaFree(d_input_);
     if (d_output_) cudaFree(d_output_);
     if (stream_)   cudaStreamDestroy(stream_);
   }
 
 private:
-  // ── TRT objects ────────────────────────────────────────────────────────────
   TRTLogger                                          trt_logger_;
   std::unique_ptr<nvinfer1::IRuntime>                runtime_;
   std::unique_ptr<nvinfer1::ICudaEngine>             engine_;
   std::unique_ptr<nvinfer1::IExecutionContext>        context_;
 
-  // ── CUDA ───────────────────────────────────────────────────────────────────
   cudaStream_t stream_{nullptr};
-  void *       d_input_{nullptr};    // device: input  [1, 3, H, W] float32
-  void *       d_output_{nullptr};   // device: output [1, 84, 8400] float32
+  void *       d_input_{nullptr};
+  void *       d_output_{nullptr};
   size_t       input_bytes_{0};
   size_t       output_bytes_{0};
 
-  // ── Config ─────────────────────────────────────────────────────────────────
   std::string onnx_path_;
   std::string engine_path_;
   bool        trt_ready_{false};
@@ -265,24 +209,18 @@ private:
   int         input_h_;
   int         min_box_h_;
 
-  // ── ROS ────────────────────────────────────────────────────────────────────
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr      image_sub_;
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr  target_pub_;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr          debug_pub_;
   rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr             srv_;
 
-  // ── Host pre-process buffer (reused across frames) ─────────────────────────
   std::vector<float> h_input_;
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Build engine from ONNX, or load cached .engine file
-  // ──────────────────────────────────────────────────────────────────────────
   void init_tensorrt()
   {
     runtime_.reset(nvinfer1::createInferRuntime(trt_logger_));
     if (!runtime_) throw std::runtime_error("Failed to create TRT IRuntime");
 
-    // Try to load cached engine first
     std::ifstream engine_file(engine_path_, std::ios::binary);
     if (engine_file.good()) {
       RCLCPP_INFO(get_logger(), "Loading cached TRT engine: %s", engine_path_.c_str());
@@ -305,17 +243,12 @@ private:
     RCLCPP_INFO(get_logger(), "TensorRT engine ready.");
   }
 
-  // ──────────────────────────────────────────────────────────────────────────
   void build_engine_from_onnx()
   {
-    // TRT10 API: builder → network → parser → config → serialized engine
     auto builder = std::unique_ptr<nvinfer1::IBuilder>(
       nvinfer1::createInferBuilder(trt_logger_));
     if (!builder) throw std::runtime_error("createInferBuilder failed");
 
-    // TRT10: explicit batch is now the default, flag value 0 is correct.
-    // kEXPLICIT_BATCH is deprecated in TRT10 but still works; use 0U directly
-    // to suppress the deprecation warning.
     auto network = std::unique_ptr<nvinfer1::INetworkDefinition>(
       builder->createNetworkV2(0U));
     if (!network) throw std::runtime_error("createNetworkV2 failed");
@@ -333,22 +266,18 @@ private:
       builder->createBuilderConfig());
     if (!config) throw std::runtime_error("createBuilderConfig failed");
 
-    // FP16 — Orin Nano Super has good FP16 throughput
     if (builder->platformHasFastFp16()) {
       config->setFlag(nvinfer1::BuilderFlag::kFP16);
       RCLCPP_INFO(get_logger(), "FP16 enabled.");
     }
 
-    // Workspace: 1 GB
     config->setMemoryPoolLimit(nvinfer1::MemoryPoolType::kWORKSPACE,
                                1ULL << 30);
 
-    // Build and serialize
     auto serialized = std::unique_ptr<nvinfer1::IHostMemory>(
       builder->buildSerializedNetwork(*network, *config));
     if (!serialized) throw std::runtime_error("buildSerializedNetwork failed");
 
-    // Save to disk for next launch
     std::ofstream out(engine_path_, std::ios::binary);
     if (out) {
       out.write(static_cast<const char*>(serialized->data()), serialized->size());
@@ -361,16 +290,10 @@ private:
       runtime_->deserializeCudaEngine(serialized->data(), serialized->size()));
   }
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Allocate pinned host + device buffers based on engine tensor shapes
-  // ──────────────────────────────────────────────────────────────────────────
   void allocate_buffers()
   {
     CUDA_CHECK(cudaStreamCreate(&stream_));
 
-    // TRT10 uses named tensor API instead of binding indices
-    // Input:  [1, 3, 640, 640]  → 1 * 3 * 640 * 640 * 4 bytes
-    // Output: [1, 84, 8400]     → 1 * 84 * 8400 * 4 bytes
     input_bytes_  = 1 * 3 * input_h_ * input_w_ * sizeof(float);
     output_bytes_ = 1 * 84 * 8400    * sizeof(float);
 
@@ -379,7 +302,6 @@ private:
 
     h_input_.resize(3 * input_h_ * input_w_);
 
-    // Bind tensor addresses — TRT10 named API
     const char * input_name  = engine_->getIOTensorName(0);
     const char * output_name = engine_->getIOTensorName(1);
 
@@ -391,10 +313,6 @@ private:
       input_name, output_name);
   }
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Letterbox resize: fit image into input_w × input_h preserving AR,
-  // pad with grey (114). Returns scale and padding offsets.
-  // ──────────────────────────────────────────────────────────────────────────
   cv::Mat letterbox(const cv::Mat & src,
                     float & scale, float & pad_x, float & pad_y)
   {
@@ -418,13 +336,8 @@ private:
     return out;
   }
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Convert letterboxed BGR uint8 Mat → normalized NCHW float32 host buffer
-  // then upload to device
-  // ──────────────────────────────────────────────────────────────────────────
   void preprocess(const cv::Mat & img_bgr)
   {
-    // BGR → RGB, then split into planar NCHW
     cv::Mat rgb;
     cv::cvtColor(img_bgr, rgb, cv::COLOR_BGR2RGB);
 
@@ -444,9 +357,6 @@ private:
       cudaMemcpyHostToDevice, stream_));
   }
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Run inference
-  // ──────────────────────────────────────────────────────────────────────────
   void infer()
   {
     // TRT10: enqueueV3 (replaces enqueueV2 from TRT8)
@@ -456,29 +366,17 @@ private:
     CUDA_CHECK(cudaStreamSynchronize(stream_));
   }
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Parse raw TRT output → detections for target_class_id_
-  //
-  // YOLOv8 ONNX output shape: [1, 84, 8400]
-  //   After reshape to [84, 8400] and transpose to [8400, 84]:
-  //   each row = [cx, cy, w, h, cls0_score, cls1_score, ..., cls79_score]
-  //   (all in the 640×640 letterbox space)
-  // ──────────────────────────────────────────────────────────────────────────
   std::vector<Detection> postprocess(float scale, float pad_x, float pad_y,
                                      int orig_w, int orig_h)
   {
-    // Copy output from device → host
     const int   num_anchors = 8400;
-    const int   num_cols    = 84;   // 4 box + 80 classes
+    const int   num_cols    = 84;
     std::vector<float> h_output(num_anchors * num_cols);
 
-    // Raw layout is [1, 84, 8400] = [84][8400] after squeezing batch.
-    // We need element [row=class_col][col=anchor] so we index directly.
     std::vector<float> raw(1 * num_cols * num_anchors);
     CUDA_CHECK(cudaMemcpy(raw.data(), d_output_, output_bytes_,
                           cudaMemcpyDeviceToHost));
 
-    // Transpose: raw[channel * 8400 + anchor] → h_output[anchor * 84 + channel]
     for (int a = 0; a < num_anchors; ++a) {
       for (int c = 0; c < num_cols; ++c) {
         h_output[a * num_cols + c] = raw[c * num_anchors + a];
@@ -495,19 +393,16 @@ private:
 
       float cx = row[0], cy = row[1], w = row[2], h = row[3];
 
-      // Un-letterbox: remove padding, divide by scale → original pixel space
       cx = (cx - pad_x) / scale;
       cy = (cy - pad_y) / scale;
       w  = w  / scale;
       h  = h  / scale;
 
-      // Clamp to image bounds
       cx = std::max(0.0f, std::min(cx, static_cast<float>(orig_w)));
       cy = std::max(0.0f, std::min(cy, static_cast<float>(orig_h)));
       w  = std::min(w, static_cast<float>(orig_w));
       h  = std::min(h, static_cast<float>(orig_h));
 
-      // Reject tiny boxes
       if (h < static_cast<float>(min_box_h_)) continue;
 
       candidates.push_back({cx, cy, w, h, conf, target_class_id_});
@@ -516,7 +411,6 @@ private:
     return nms(candidates, static_cast<float>(nms_thresh_));
   }
 
-  // ──────────────────────────────────────────────────────────────────────────
   void image_callback(const sensor_msgs::msg::Image::SharedPtr msg)
   {
     cv::Mat frame;
@@ -527,9 +421,6 @@ private:
       return;
     }
 
-    // If TRT engine is not ready yet (still building or failed),
-    // publish the raw camera frame with a status overlay so the
-    // browser stream is live immediately rather than showing "Waiting".
     if (!trt_ready_) {
       cv::Mat overlay = frame.clone();
       const std::string msg_text = "Building TRT engine, please wait...";
@@ -556,20 +447,15 @@ private:
     const int orig_h = frame.rows;
 
     try {
-      // 1. Letterbox
       float scale, pad_x, pad_y;
       cv::Mat lb = letterbox(frame, scale, pad_x, pad_y);
 
-      // 2. Pre-process + upload
       preprocess(lb);
 
-      // 3. Infer
       infer();
 
-      // 4. Post-process
       auto dets = postprocess(scale, pad_x, pad_y, orig_w, orig_h);
 
-      // 8. Draw all detections on debug frame and publish
       cv::Mat debug_frame = frame.clone();
       for (const auto & d : dets) {
         int x1 = static_cast<int>(d.x - d.w / 2);
@@ -579,10 +465,9 @@ private:
         x1 = std::max(0, x1); y1 = std::max(0, y1);
         x2 = std::min(orig_w - 1, x2); y2 = std::min(orig_h - 1, y2);
 
-        // Green box for target class, red for others
         cv::Scalar colour = (&d == &dets[0])
-          ? cv::Scalar(0, 255, 0)    // best detection: green
-          : cv::Scalar(0, 120, 255); // others: orange
+          ? cv::Scalar(0, 255, 0)
+          : cv::Scalar(0, 120, 255);
 
         cv::rectangle(debug_frame, cv::Point(x1, y1), cv::Point(x2, y2), colour, 2);
 
@@ -598,11 +483,6 @@ private:
           cv::FONT_HERSHEY_SIMPLEX, 0.55, cv::Scalar(0, 0, 0), 1);
       }
 
-      // Always publish debug image regardless of subscriber count.
-      // Removing the get_subscription_count() gate because DDS discovery
-      // between detection_node and web_server is not instant — the count
-      // can read 0 for several frames after startup even though web_server
-      // is already subscribed, causing the stream to never start.
       {
         cv_bridge::CvImage cv_img;
         cv_img.header.stamp    = msg->header.stamp;
@@ -614,11 +494,8 @@ private:
 
       if (dets.empty()) return;
 
-      // 5. Pick highest-confidence detection
-      const Detection & best = dets[0];  // already sorted by conf in nms()
+      const Detection & best = dets[0];
 
-      // 6. Pinhole distance estimate
-      //    distance = real_height [m] * focal_length [px] / box_height [px]
       float real_h  = (target_class_id_ == 32)
                       ? static_cast<float>(ball_height_)
                       : static_cast<float>(person_height_);
@@ -626,24 +503,17 @@ private:
       float dist    = (real_h * static_cast<float>(focal_length_)) /
                       std::max(best.h, 1.0f);
 
-      // lateral offset: positive = left of centre in camera frame
       float cx_px   = best.x;
       float offset  = cx_px - orig_w / 2.0f;
       float lateral = -(offset * dist) / static_cast<float>(focal_length_);
 
-      // 7. Publish PoseStamped in camera_link frame
-      //    web_server_node transforms this to map via TF before Nav2.
-      //
-      // camera_link axes (from URDF joint rpy="1.5708 0 1.5708"):
-      //   +x = robot LEFT,  +y = robot UP,  +z = robot FORWARD
-      // So depth goes into z and lateral (positive=LEFT) goes into x.
       geometry_msgs::msg::PoseStamped pose;
       pose.header.stamp    = msg->header.stamp;
       pose.header.frame_id = "camera_link";
 
-      pose.pose.position.x = static_cast<double>(lateral);  // +x = LEFT
-      pose.pose.position.y = 0.0;                            // +y = UP (person at floor level)
-      pose.pose.position.z = static_cast<double>(dist);     // +z = FORWARD
+      pose.pose.position.x = static_cast<double>(lateral);
+      pose.pose.position.y = 0.0;
+      pose.pose.position.z = static_cast<double>(dist);
 
       pose.pose.orientation.x = 0.0;
       pose.pose.orientation.y = 0.0;
@@ -663,7 +533,6 @@ private:
   }
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);

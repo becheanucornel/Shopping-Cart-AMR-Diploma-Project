@@ -18,9 +18,6 @@ public:
     rclcpp::QoS qos_profile = rclcpp::SensorDataQoS();
     publisher_ = this->create_publisher<sensor_msgs::msg::Image>("camera", qos_profile);
 
-    // sensor-mode=3: 1640x1232 full-FOV 2x2 binned mode on IMX219 (Pi Cam V2).
-    // Modes 2/4/5 (1920x1080, 1280x720) are center-cropped and cause a zoom effect.
-    // ee-mode=2 / ee-strength=0.5: ISP edge enhancement to sharpen the fixed-focus lens output.
     std::string pipeline =
         "nvarguscamerasrc sensor-id=" + std::to_string(camera_index) + " sensor-mode=3 "
         "ee-mode=2 ee-strength=0.5 tnr-mode=2 tnr-strength=0.5 ! "

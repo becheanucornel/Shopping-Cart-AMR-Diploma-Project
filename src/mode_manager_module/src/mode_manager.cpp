@@ -95,7 +95,6 @@ private:
     void R_INFO(const std::string & msg)  { RCLCPP_INFO(this->get_logger(),  "%s", msg.c_str()); }
     void R_ERROR(const std::string & msg) { RCLCPP_ERROR(this->get_logger(), "%s", msg.c_str()); }
 
-    // ── State ─────────────────────────────────────────────────────────────
     std::string current_mode_;
     double nav_cruise_linear_scale_, nav_cruise_angular_scale_;
     double nav_linear_scale_, nav_angular_scale_;
@@ -112,7 +111,6 @@ private:
     rclcpp::Time last_nav_cmd_time_{0, 0, RCL_ROS_TIME};
     rclcpp::Time last_follow_cmd_time_{0, 0, RCL_ROS_TIME};
 
-    // ── ROS interfaces ─────────────────────────────────────────────────────
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr      mode_publisher_;
     rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr  cmd_vel_publisher_;
 
@@ -127,7 +125,6 @@ private:
     GoalHandleNavigateToPose::SharedPtr current_goal_handle_;
     rclcpp::TimerBase::SharedPtr cmd_vel_timer_;
 
-    // ── Helpers ────────────────────────────────────────────────────────────
     void publish_current_mode()
     {
         auto msg = std_msgs::msg::String();
@@ -149,10 +146,8 @@ private:
         }
     }
 
-    // ── Publish initial pose catre AMCL ────────────────────────────────────
     void publish_initial_pose(double x, double y, double yaw)
     {
-        // sin/cos pentru quaternion din yaw
         double qz = std::sin(yaw / 2.0);
         double qw = std::cos(yaw / 2.0);
 
@@ -174,14 +169,12 @@ private:
                std::to_string(x) + ", " + std::to_string(y) + ", yaw=" + std::to_string(yaw) + ")");
     }
 
-    // ── Salvare harta + tranzitie la localizare ────────────────────────────
     void save_map_and_switch_to_localization(const std::string & save_path,
                                               const std::string & yaml_path,
                                               double init_x, double init_y, double init_yaw)
     {
         std::thread([save_path, yaml_path, init_x, init_y, init_yaw, this]() {
 
-            // 1. Salveaza harta
             fprintf(stderr, "[mode_manager] Incep salvarea hartii la: %s\n", save_path.c_str());
             std::string save_cmd = "ros2 run nav2_map_server map_saver_cli -f "
                 + save_path + " --ros-args -p save_map_timeout:=10.0 2>&1";
@@ -192,13 +185,11 @@ private:
                 fprintf(stderr, "[mode_manager] Harta salvata cu succes.\n");
             }
 
-            // 2. Opreste SLAM Toolbox
             std::this_thread::sleep_for(std::chrono::seconds(1));
             std::system("pkill -SIGINT -f async_slam_toolbox_node 2>/dev/null || true");
             fprintf(stderr, "[mode_manager] SLAM Toolbox oprit.\n");
             std::this_thread::sleep_for(std::chrono::seconds(3));
 
-            // 3. Incarca harta noua in map_server
             fprintf(stderr, "[mode_manager] Incarc harta noua in map_server...\n");
             std::string load_cmd =
                 "ros2 service call /map_server/load_map nav2_msgs/srv/LoadMap "
@@ -206,21 +197,17 @@ private:
             std::system(load_cmd.c_str());
             std::this_thread::sleep_for(std::chrono::seconds(3));
 
-            // 4. Activeaza map_server daca nu e activ
             std::system("ros2 lifecycle set /map_server activate 2>/dev/null || true");
             std::this_thread::sleep_for(std::chrono::seconds(1));
 
-            // 5. Activeaza AMCL
             fprintf(stderr, "[mode_manager] Activez AMCL...\n");
             std::system("ros2 lifecycle set /amcl activate 2>/dev/null || true");
             std::this_thread::sleep_for(std::chrono::seconds(3));
 
-            // 6. Publica initial pose catre AMCL
             fprintf(stderr, "[mode_manager] Publicand initial pose la (%.2f, %.2f, %.2f)...\n",
                     init_x, init_y, init_yaw);
             this->publish_initial_pose(init_x, init_y, init_yaw);
 
-            // 7. Reporneste YOLO acum ca SLAM s-a terminat
             std::this_thread::sleep_for(std::chrono::seconds(1));
             std::system(
                 "ros2 run human_detection_module detection_node "
@@ -239,7 +226,6 @@ private:
         }).detach();
     }
 
-    // ── Callbacks ──────────────────────────────────────────────────────────
     void teleop_callback(const geometry_msgs::msg::Twist::SharedPtr msg)
     {
         last_teleop_cmd_ = *msg;
@@ -264,7 +250,6 @@ private:
         last_odom_angular_z_ = msg->twist.twist.angular.z;
     }
 
-    // ── FIX CRITIC: Goal trimis la Nav2 ───────────────────────────────────
     void ui_goal_callback(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
     {
         if (current_mode_ != "NAVIGATION") {
@@ -277,7 +262,6 @@ private:
             return;
         }
 
-        // Anuleaza goal-ul curent daca exista
         cancel_active_navigation();
 
         auto goal = NavigateToPose::Goal();
@@ -301,7 +285,6 @@ private:
             [this](GoalHandleNavigateToPose::SharedPtr,
                    const std::shared_ptr<const NavigateToPose::Feedback> feedback) {
                 (void)feedback;
-                // Poate fi folosit pentru a afisa distanta ramasa etc.
             };
 
         send_goal_options.result_callback =
@@ -328,13 +311,11 @@ private:
                " y=" + std::to_string(msg->pose.position.y));
     }
 
-    // ── Mode switching ─────────────────────────────────────────────────────
     void ui_mode_callback(const std_msgs::msg::String::SharedPtr msg)
     {
         std::string target = msg->data;
         R_INFO("COMANDA PRIMITA: " + target + " (Stare actuala: " + current_mode_ + ")");
 
-        // Tranzitie din MAPPING → orice altceva: salveaza harta si treci la localizare
         if (current_mode_ == "MAPPING" && target != "MAPPING") {
             R_INFO("Iesire din modul MAPPING. Salvez harta...");
             std::string save_path = this->get_parameter("map_save_path").as_string();
@@ -346,7 +327,6 @@ private:
         }
 
         if (target != current_mode_) {
-            // Opreste navigatia activa daca eram in NAVIGATION sau FOLLOWING
             if (current_mode_ == "NAVIGATION" || current_mode_ == "FOLLOWING") {
                 cancel_active_navigation();
             }
@@ -355,11 +335,8 @@ private:
             publish_current_mode();
             stop_robot();
 
-            // Tranzitie catre MAPPING: dezactiveaza AMCL si porneste SLAM
             if (target == "MAPPING") {
                 R_INFO("Dezactivez AMCL si pornesc SLAM Toolbox...");
-                // Kill lifecycle manager first — otherwise it detects bond break and re-activates
-                // AMCL/map_server 4s later, causing SLAM and AMCL to run simultaneously
                 std::system("pkill -SIGINT -f lifecycle_manager_localization 2>/dev/null || true");
                 std::this_thread::sleep_for(std::chrono::milliseconds(600));
                 std::system("ros2 lifecycle set /amcl deactivate 2>/dev/null || true");
@@ -368,19 +345,16 @@ private:
                 R_INFO("YOLO oprit pentru mapping (elibereaza CPU pentru SLAM).");
                 std::this_thread::sleep_for(std::chrono::seconds(2));
 
-                // Note: If SLAM is pre-launched conditionally, activate it here
-                // Otherwise, manual launch (less recommended)
                 std::string slam_params = this->get_parameter("slam_params_file").as_string();
                 std::string slam_cmd = "ros2 launch slam_toolbox online_async_launch.py use_sim_time:=false";
                 if (!slam_params.empty()) slam_cmd += " slam_params_file:=" + slam_params;
                 slam_cmd += " &";
                 R_INFO("Lansez SLAM Toolbox...");
                 std::system(slam_cmd.c_str());
-                std::this_thread::sleep_for(std::chrono::seconds(3));  // Wait for SLAM to initialize
+                std::this_thread::sleep_for(std::chrono::seconds(3));
                 R_INFO("SLAM Toolbox pornit.");
             }
 
-            // Tranzitie catre NAVIGATION: publica initial pose ca AMCL sa fie sigur activ
             if (target == "NAVIGATION") {
                 R_INFO("Mod NAVIGATION activ. AMCL ar trebui sa fie localizat.");
             }
@@ -390,7 +364,6 @@ private:
         }
     }
 
-    // ── cmd_vel timer ──────────────────────────────────────────────────────
     void cmd_vel_timer_tick()
     {
         auto now = this->now();
@@ -406,7 +379,6 @@ private:
                 out = last_nav_cmd_;
                 out.linear.x  *= nav_cruise_linear_scale_;
                 out.angular.z *= nav_cruise_angular_scale_;
-                // Anti-stuck: daca Nav2 cere miscare dar robotul nu se misca, aplica scala suplimentara
                 if (std::abs(out.linear.x) > 0.0 &&
                     std::abs(last_odom_linear_x_) < nav_stuck_linear_x_)
                 {
@@ -420,7 +392,6 @@ private:
                 out = last_nav_cmd_;
             }
         }
-        // IDLE: out ramane zero — robotul sta pe loc
 
         cmd_vel_publisher_->publish(out);
     }

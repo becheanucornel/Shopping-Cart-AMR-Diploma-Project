@@ -73,9 +73,7 @@ class AmrMotorNode(Node):
         self.declare_parameter('linear_decel_limit',  1.5)   # m/s² — faster stop
         self.declare_parameter('angular_accel_limit', 0.5)   # rad/s²
         self.declare_parameter('angular_decel_limit', 3.0)   # rad/s²
-        # How many m/s maps to 100% PWM (tune to match motor characteristics)
         self.declare_parameter('pwm_scale',          1.0)   # 1.0 m/s = 100% PWM
-        # Seconds without a cmd_vel before ramping to stop
         self.declare_parameter('cmd_vel_timeout',    0.5)
 
         self.R = self.get_parameter('wheel_radius').value

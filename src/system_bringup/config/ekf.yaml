@@ -11,8 +11,6 @@ ekf_filter_node:
     base_link_frame: custom_base_footprint
     world_frame: custom_odom
 
-    # rf2o laser odometry — more reliable than wheel encoders for this robot.
-    # Fusing only velocities avoids pose drift accumulation issues.
     odom0: /odom_rf2o
     odom0_config: [false, false, false,
                    false, false, false,
@@ -23,8 +21,6 @@ ekf_filter_node:
     odom0_relative: false
     odom0_queue_size: 10
 
-    # Full 15x15 process noise covariance (225 elements).
-    # States: x, y, z, roll, pitch, yaw, vx, vy, vz, vroll, vpitch, vyaw, ax, ay, az
     process_noise_covariance: [0.05, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
                                0.0,  0.05, 0.0,  0.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
                                0.0,  0.0,  0.06, 0.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,

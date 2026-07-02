@@ -4,7 +4,7 @@ package_name = 'robot_driver'
 
 setup(
     name=package_name,
-    version='0.0.0',
+    version='1.0.0',
     packages=find_packages(exclude=['test']),
     data_files=[
         ('share/ament_index/resource_index/packages',
@@ -13,10 +13,10 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='hephaestus',
+    maintainer='becheanucornel',
     maintainer_email='becheanucornel28@gmail.com',
-    description='TODO: Package description',
-    license='TODO: License declaration',
+    description='Differential Driver AMR - Robot Driver',
+    license='MIT',
     extras_require={
         'test': [
             'pytest',

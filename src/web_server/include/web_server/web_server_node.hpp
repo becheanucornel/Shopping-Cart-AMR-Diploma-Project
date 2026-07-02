@@ -78,7 +78,6 @@ private:
   std::shared_ptr<net::io_context>   ioc_;
   std::unique_ptr<std::thread>       server_thread_;
 
-  // ── ROS pubs / subs ───────────────────────────────────────────────────────
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr            goal_sub_;
   rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr                       goal_cancel_sub_;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr                       odom_nav2_pub_;
@@ -86,13 +85,11 @@ private:
   rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr amcl_pose_sub_;
   rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr initialpose_pub_;
 
-  // ── Mode management ───────────────────────────────────────────────────────
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr ui_mode_sub_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr    mode_pub_;
   std::string current_mode_{"IDLE"};
   rclcpp::TimerBase::SharedPtr mode_publish_timer_;
 
-  // ── Follow Me / YOLO ──────────────────────────────────────────────────────
   bool        is_following_active_{false};
   std::string follow_me_xml_path_;
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr yolo_target_sub_;
@@ -100,15 +97,12 @@ private:
   geometry_msgs::msg::PoseStamped           pending_follow_pose_;
   bool                                      has_pending_follow_{false};
 
-  // How far behind the person to target (avoids planning into the person's body)
   double follow_distance_{0.7};
-  // Minimum goal displacement before sending a new navigate_to_pose (reduces preemption)
   double min_goal_displacement_{0.3};
   double last_follow_goal_x_{0.0};
   double last_follow_goal_y_{0.0};
   bool   has_sent_follow_goal_{false};
 
-  // ── Nav2 action client ────────────────────────────────────────────────────
   rclcpp_action::Client<NavigateToPose>::SharedPtr nav_client_;
   GoalHandleNavigateToPose::SharedPtr              current_goal_handle_;
   bool                                             cancel_in_progress_{false};
@@ -116,7 +110,6 @@ private:
   bool                                             pending_goal_{false};
   rclcpp::TimerBase::SharedPtr                     preempt_timer_;
 
-  // ── Robot state ───────────────────────────────────────────────────────────
   std::mutex               data_mutex_;
   geometry_msgs::msg::Pose current_pose_;
   nav_msgs::msg::Odometry  current_odom_;
@@ -135,7 +128,6 @@ private:
   std::shared_ptr<tf2_ros::Buffer>            tf_buffer_;
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 
-  // ── MJPEG stream state ────────────────────────────────────────────────────
   std::mutex         camera_frame_mutex_;
   std::vector<uchar> latest_camera_jpeg_;
 
@@ -148,6 +140,5 @@ private:
   int jpeg_quality_{75};
 };
 
-}  // namespace web_server
 
 #endif  // WEB_SERVER__WEB_SERVER_NODE_HPP_

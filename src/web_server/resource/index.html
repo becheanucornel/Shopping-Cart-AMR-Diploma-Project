@@ -551,8 +551,6 @@ function cancelGoal() {
 
 let followActive = false;
 
-// Switch to the FOLLOW panel without activating following yet.
-// The START button is what actually enables following on the backend.
 function enterFollowPanel() {
   if (currentMode === 'FOLLOWING') return;
   currentMode = 'FOLLOWING';
@@ -563,7 +561,6 @@ function enterFollowPanel() {
   Object.entries(PANELS).forEach(([key, id]) => {
     document.getElementById(id).classList.toggle('visible', key === 'following');
   });
-  // No ROS publish here — backend only activates following when START is pressed.
 }
 
 function setTargetClass(val) {
@@ -589,7 +586,6 @@ function resetFollowUI() {
   document.getElementById('btnFollowStop').style.display  = 'none';
 }
 
-// ── Map ────────────────────────────────────────────────────────────────────
 let viewer, mapClient, robotMarker, pathShape, amclSub, planSub;
 let isTrackingRobot = true;
 let trackResumeTimer = null;
@@ -641,7 +637,6 @@ function initMap() {
     }
   });
 
-  // Path drawn beneath the robot marker
   pathShape = new createjs.Shape();
   viewer.scene.addChild(pathShape);
 
@@ -652,7 +647,6 @@ function initMap() {
     .beginFill('#fff').moveTo(0.06,-0.12).lineTo(0.30,0).lineTo(0.06,0.12).closePath();
   viewer.scene.addChild(robotMarker);
 
-  // Subscribe to Nav2 global plan
   planSub = new ROSLIB.Topic({ ros, name: '/plan', messageType: 'nav_msgs/msg/Path' });
   planSub.subscribe(msg => {
     if (!pathShape) return;
@@ -668,9 +662,6 @@ function initMap() {
     pathShape.graphics.endStroke();
   });
 
-  // FIX: Folosim /amcl_pose in loc de /odom_nav2
-  // /amcl_pose = pozitia reala a robotului pe harta globala (localizata de AMCL)
-  // /odom_nav2 = odometrie simpla relativa la punctul de pornire (deriva in timp)
   amclSub = new ROSLIB.Topic({
     ros,
     name: '/amcl_pose',

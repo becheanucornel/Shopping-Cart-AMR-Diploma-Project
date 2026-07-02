@@ -34,7 +34,6 @@ def generate_launch_description():
     slam_params_file  = os.path.join(system_bringup_dir, 'config', 'slam_toolbox.yaml')
     robot_rviz_config = os.path.join(system_bringup_dir, 'rviz',   'shopping_cart_amr.rviz')
 
-    # ── Launch arguments ────────────────────────────────────────────────────
     declare_mode_arg                    = DeclareLaunchArgument('mode',                    default_value='idle')
     declare_use_sim_time_arg            = DeclareLaunchArgument('use_sim_time',            default_value='false')
     declare_rviz_arg                    = DeclareLaunchArgument('rviz',                    default_value='false')
@@ -61,7 +60,6 @@ def generate_launch_description():
     declare_camera_width_arg            = DeclareLaunchArgument('camera_width',            default_value='1920.0')
     declare_target_height_arg           = DeclareLaunchArgument('target_height',           default_value='1080.0')
 
-    # ── Conditions ──────────────────────────────────────────────────────────
     not_view_or_ui = PythonExpression([
         "'", LaunchConfiguration('mode'), "' != 'view' and '",
         LaunchConfiguration('mode'), "' != 'ui_only'"
@@ -78,7 +76,6 @@ def generate_launch_description():
         "'", LaunchConfiguration('slam_mode'), "' == 'mapping'"
     ])
 
-    # ── Robot description ───────────────────────────────────────────────────
     robot_state_publisher = Node(
         package='robot_state_publisher',
         executable='robot_state_publisher',
@@ -112,7 +109,6 @@ def generate_launch_description():
         ]))
     )
 
-    # ── Mode Manager ────────────────────────────────────────────────────────
     mode_manager = Node(
         package='mode_manager_module',
         executable='mode_manager_node',
@@ -137,7 +133,6 @@ def generate_launch_description():
         ]))
     )
 
-    # ── LiDARs ──────────────────────────────────────────────────────────────
     lidar_fl = Node(
         package='sllidar_ros2', executable='sllidar_node', name='sllidar_front_left', output='screen',
         parameters=[{'serial_port': '/dev/ttyUSB0', 'serial_baudrate': 460800,
@@ -163,7 +158,6 @@ def generate_launch_description():
         remappings=[('/scan', '/lidar_back_left/scan')]
     )
 
-    # ── Scan merger ─────────────────────────────────────────────────────────
     scan_merger = Node(
         package='scan_merger_module',
         executable='scan_merger_node',
@@ -179,23 +173,21 @@ def generate_launch_description():
         }]
     )
 
-    # ── Motor controller ────────────────────────────────────────────────────
     motor_controller = Node(
         package='robot_driver',
         executable='motor_controller_node',
         name='motor_controller',
         output='screen',
         parameters=[{
-            'max_linear_speed':    1.0,   # m/s — allows manual slider full range
+            'max_linear_speed':    1.0,   # m/s
             'max_angular_speed':   2.0,   # rad/s
-            'linear_accel_limit':  0.15,  # m/s² — gentle ramp up
-            'linear_decel_limit':  1.5,   # m/s² — sharp stop
+            'linear_accel_limit':  0.15,  # m/s²
+            'linear_decel_limit':  1.5,   # m/s²
             'angular_accel_limit': 0.5,   # rad/s²
             'angular_decel_limit': 3.0,   # rad/s²
         }]
     )
 
-    # ── Camera publisher ─────────────────────────────────────────────────────
     camera_publisher = Node(
         package='camera_module',
         executable='video_stream_publisher',
@@ -209,7 +201,6 @@ def generate_launch_description():
         }]
     )
 
-    # ── LiDAR odometry (rf2o) ────────────────────────────────────────────────
     rf2o_node = Node(
         package='rf2o_laser_odometry',
         executable='rf2o_laser_odometry_node',
@@ -219,7 +210,7 @@ def generate_launch_description():
         parameters=[{
             'laser_scan_topic':     '/scan',
             'odom_topic':           '/odom_rf2o',
-            'publish_tf':           True,   # rf2o publishes TF at scan rate; EKF does fusion only
+            'publish_tf':           True,
             'base_frame_id':        'custom_base_footprint',
             'odom_frame_id':        'custom_odom',
             'init_pose_from_topic': '',
@@ -227,7 +218,6 @@ def generate_launch_description():
         }]
     )
 
-    # ── EKF sensor fusion ────────────────────────────────────────────────────
     ekf_node = Node(
         package='robot_localization',
         executable='ekf_node',
@@ -236,7 +226,6 @@ def generate_launch_description():
         parameters=[os.path.join(system_bringup_dir, 'config', 'ekf.yaml')]
     )
 
-    # ── Web server ───────────────────────────────────────────────────────────
     web_server = Node(
         package='web_server',
         executable='web_server_node',
@@ -257,7 +246,6 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration('rviz'))
     )
 
-    # ── Nav2 ─────────────────────────────────────────────────────────────────
     nav2_container = Node(
         package='rclcpp_components',
         executable='component_container_isolated',
@@ -373,8 +361,6 @@ def generate_launch_description():
         condition=IfCondition(mapping_mode)
     )
 
-    # ── Global localization trigger — fired at t=10s from launch ─────────────
-    # Stage 3 (AMCL) starts at t=6s; 4s is enough for lifecycle activation.
     publish_initial_pose = TimerAction(
         period=10.0,
         actions=[
@@ -389,7 +375,6 @@ def generate_launch_description():
         ]
     )
 
-    # ── ROSBridge ─────────────────────────────────────────────────────────────
     rosbridge_websocket = Node(
         package='rosbridge_server',
         executable='rosbridge_websocket',
@@ -402,7 +387,6 @@ def generate_launch_description():
         }]
     )
 
-    # ── YOLO / detection node ─────────────────────────────────────────────────
     yolo_tracker_node = Node(
         package='human_detection_module',
         executable='detection_node',
@@ -419,7 +403,6 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration('enable_follow'))
     )
 
-    # ── Launch description assembly ───────────────────────────────────────────
     ld = LaunchDescription()
 
     for arg in [
@@ -492,7 +475,6 @@ def generate_launch_description():
                 LogInfo(msg="[Stage 6/6] Web, ROSBridge, YOLO & RViz..."),
                 web_server, rosbridge_websocket, yolo_tracker_node, rviz2,
             ]),
-            # Initial pose la t=20s de la pornirea staged_group
             publish_initial_pose,
         ]
     )

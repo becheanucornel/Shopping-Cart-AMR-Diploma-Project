@@ -118,9 +118,6 @@ WebServerNode::WebServerNode(const rclcpp::NodeOptions & options)
   server_thread_ = std::make_unique<std::thread>(&WebServerNode::run_server, this);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Camera frame callbacks — JPEG encode and store latest frame
-// ─────────────────────────────────────────────────────────────────────────────
 void WebServerNode::camera_callback(const sensor_msgs::msg::Image::SharedPtr msg)
 {
   try {
@@ -151,9 +148,6 @@ void WebServerNode::debug_image_callback(const sensor_msgs::msg::Image::SharedPt
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Mode callback
-// ─────────────────────────────────────────────────────────────────────────────
 void WebServerNode::ui_mode_callback(const std_msgs::msg::String::SharedPtr msg)
 {
   RCLCPP_INFO(this->get_logger(), "Mode change: %s", msg->data.c_str());
@@ -166,9 +160,6 @@ void WebServerNode::ui_mode_callback(const std_msgs::msg::String::SharedPtr msg)
   }
 
   if (current_mode_ == "MANUAL" || current_mode_ == "IDLE") {
-    // Cancel all active Nav2 goals — async_cancel_all_goals covers the case
-    // where current_goal_handle_ is null (follow goals cycle; the handle is
-    // reset after each result, so there may be an in-flight goal with no handle).
     if (nav_client_) {
       RCLCPP_WARN(this->get_logger(), "Cancelling all Nav2 goals (switching to %s)", current_mode_.c_str());
       (void)nav_client_->async_cancel_all_goals();
@@ -184,10 +175,6 @@ void WebServerNode::ui_mode_callback(const std_msgs::msg::String::SharedPtr msg)
   std_msgs::msg::String m; m.data = current_mode_;
   mode_pub_->publish(m);
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// YOLO target → transform to map → store for throttled send
-// ─────────────────────────────────────────────────────────────────────────────
 void WebServerNode::yolo_target_callback(
   const geometry_msgs::msg::PoseStamped::SharedPtr msg)
 {
@@ -207,9 +194,6 @@ void WebServerNode::yolo_target_callback(
   has_pending_follow_  = true;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Follow goal timer — sends at ≤5 Hz to avoid flooding Nav2
-// ─────────────────────────────────────────────────────────────────────────────
 void WebServerNode::follow_goal_timer_cb()
 {
   if (!is_following_active_) return;
@@ -231,23 +215,18 @@ void WebServerNode::follow_goal_timer_cb()
   double py   = target.pose.position.y;
   double dist = std::hypot(px - rx, py - ry);
 
-  // Already within follow distance — let Nav2 stop naturally, don't send another goal
   if (dist < follow_distance_) return;
 
-  // Target a point follow_distance behind the person (toward the robot)
-  // so we never ask Nav2 to plan into the person's body
   double ux = (rx - px) / dist;
   double uy = (ry - py) / dist;
   double gx = px + ux * follow_distance_;
   double gy = py + uy * follow_distance_;
 
-  // Suppress update if the new goal hasn't moved enough from the last sent goal
   if (has_sent_follow_goal_) {
     double delta = std::hypot(gx - last_follow_goal_x_, gy - last_follow_goal_y_);
     if (delta < min_goal_displacement_) return;
   }
 
-  // Face the person from the approach point
   double angle = std::atan2(py - gy, px - gx);
   target.pose.position.x    = gx;
   target.pose.position.y    = gy;
@@ -274,7 +253,6 @@ void WebServerNode::follow_goal_timer_cb()
   };
   opts.result_callback = [this](const GoalHandleNavigateToPose::WrappedResult & result) {
     current_goal_handle_.reset();
-    // Reset so the next significant detection immediately triggers a fresh goal
     if (result.code != rclcpp_action::ResultCode::SUCCEEDED) {
       has_sent_follow_goal_ = false;
     }
@@ -282,9 +260,6 @@ void WebServerNode::follow_goal_timer_cb()
   nav_client_->async_send_goal(goal, opts);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Nav goal / cancel helpers
-// ─────────────────────────────────────────────────────────────────────────────
 void WebServerNode::send_pending_goal()
 {
   if (!pending_goal_) return;
@@ -348,9 +323,6 @@ void WebServerNode::goal_cancel_callback(const std_msgs::msg::Empty::SharedPtr)
   (void)nav_client_->async_cancel_goal(current_goal_handle_);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Odometry / AMCL callbacks
-// ─────────────────────────────────────────────────────────────────────────────
 void WebServerNode::odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg)
 {
   std::lock_guard<std::mutex> lock(data_mutex_);
@@ -400,9 +372,6 @@ void WebServerNode::amcl_callback(
   current_pose_ = msg->pose.pose;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// HTTP server
-// ─────────────────────────────────────────────────────────────────────────────
 WebServerNode::~WebServerNode()
 {
   running_ = false;
@@ -421,8 +390,6 @@ void WebServerNode::run_server()
       tcp::socket socket{*ioc_};
       try {
         acceptor.accept(socket);
-        // Peek at the path to decide if it's an MJPEG stream
-        // (long-lived connection, needs its own thread)
         std::thread([this, s = std::move(socket)]() mutable {
           handle_session(std::move(s));
         }).detach();
@@ -444,15 +411,11 @@ void WebServerNode::handle_session(tcp::socket socket)
 
     std::string path = std::string(req.target());
 
-    // FIX: Strip query string (?timestamp cache-bust etc.) before routing.
-    // Without this, /stream/debug?1779982987818 falls through to the static
-    // file handler and logs "File not found: .../resource/stream/debug?..."
     auto qs_pos = path.find('?');
     if (qs_pos != std::string::npos) {
       path = path.substr(0, qs_pos);
     }
 
-    // MJPEG streams — long-lived, handled separately
     if (path == "/stream/camera" || path == "/stream/debug") {
       handle_mjpeg_stream(path, std::move(socket));
       return;
@@ -488,11 +451,6 @@ void WebServerNode::handle_session(tcp::socket socket)
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MJPEG streaming — push frames as multipart/x-mixed-replace
-// Each frame is sent as a JPEG boundary block.
-// Runs in its own thread (detached from accept loop above).
-// ─────────────────────────────────────────────────────────────────────────────
 void WebServerNode::handle_mjpeg_stream(
   const std::string & path, tcp::socket socket)
 {
@@ -521,7 +479,6 @@ void WebServerNode::handle_mjpeg_stream(
       }
 
       if (jpeg.empty()) {
-        // No frame yet from ROS — show a minimal placeholder
         cv::Mat placeholder(240, 320, CV_8UC3, cv::Scalar(15, 15, 15));
         cv::putText(placeholder, "Connecting...",
           cv::Point(70, 125), cv::FONT_HERSHEY_SIMPLEX,
@@ -544,18 +501,13 @@ void WebServerNode::handle_mjpeg_stream(
       boost::asio::write(socket, boost::asio::buffer(std::string("\r\n")), ec);
       if (ec) break;
 
-      // ~20 FPS cap — avoids hammering the network on a Jetson
       std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
   } catch (const std::exception & e) {
-    // Client disconnected — normal, not an error
     (void)e;
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// API endpoints
-// ─────────────────────────────────────────────────────────────────────────────
 void WebServerNode::handle_api_request(
   const std::string & path, tcp::socket & socket)
 {
